@@ -125,6 +125,43 @@ tr.pos td:first-child{border-left:3px solid var(--bd)}
 .modal{border-radius:var(--R) var(--R) 0 0;max-height:92vh;overflow-y:auto;max-width:100%}
 th,td{padding:7px 8px;font-size:12px}}
 </style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDlGzpRzA4ze5TSMyGwTxREs1sPPZR6DZg",
+  authDomain: "mi-planer-8801c.firebaseapp.com",
+  projectId: "mi-planer-8801c",
+  storageBucket: "mi-planer-8801c.firebasestorage.app",
+  messagingSenderId: "243910049708",
+  appId: "1:243910049708:web:a73b9bad428d2171e08409"
+};
+firebase.initializeApp(firebaseConfig);
+const _db = firebase.firestore();
+const _ARQ_DOC = _db.collection("arqgestion").doc("estudio_modulo_sur");
+
+window._arqSave = function(data) {
+  return _ARQ_DOC.set({ payload: JSON.stringify(data) }).catch(function(e){
+    console.error("Error guardando ARQ:", e);
+  });
+};
+window._arqLoad = function() {
+  return _ARQ_DOC.get().then(function(snap) {
+    if (snap.exists) return JSON.parse(snap.data().payload);
+    return null;
+  }).catch(function(e){ return null; });
+};
+window._arqListen = function(callback) {
+  return _ARQ_DOC.onSnapshot(function(snap) {
+    if (snap.exists) {
+      try { callback(JSON.parse(snap.data().payload)); } catch(e) {}
+    }
+  });
+};
+window._arqFirebaseReady = true;
+window.dispatchEvent(new Event("arq-firebase-ready"));
+</script>
 </head>
 <body>
 <div class="app">
@@ -158,7 +195,8 @@ th,td{padding:7px 8px;font-size:12px}}
       <div class="sb-lbl">Sistema</div>
       <div class="sb-item" data-v="config" onclick="go('config')"><span class="sb-ico">⊗</span>Configuración</div>
     </div>
-    <div class="sb-user">
+    <div id="arq-sync" style="font-size:10px;color:#3b6d11;padding:4px 16px;text-align:center;border-bottom:.5px solid var(--bd)">✓ Sincronizado</div>
+<div class="sb-user">
       <div class="tsm tx2 mb2">Usuario activo:</div>
       <select id="USEL" onchange="setUser(this.value)" class="inp" style="width:100%">
         <option value="u1">Usuario 1</option>
@@ -181,14 +219,94 @@ th,td{padding:7px 8px;font-size:12px}}
 // ── Storage ──
 var CU='u1';
 function rdb(k,d){try{var v=localStorage.getItem('arq_'+CU+'_'+k);return v?JSON.parse(v):d}catch(e){return d}}
-function wdb(k,v){localStorage.setItem('arq_'+CU+'_'+k,JSON.stringify(v))}
+function wdb(k,v){
+  localStorage.setItem('arq_'+CU+'_'+k,JSON.stringify(v));
+  // Sync a Firebase con debounce
+  clearTimeout(window._arqSaveTimer);
+  window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase();},800);
+}
+function _arqGetAllData(){
+  var keys=['proyectos','clientes','tramites','presupuestos','config',
+            'profNombre','profProfesion','profTelefono','profEmail'];
+  var data={logo:localStorage.getItem('arq_logo')||''};
+  ['u1','u2'].forEach(function(u){
+    keys.forEach(function(k){
+      var v=localStorage.getItem('arq_'+u+'_'+k);
+      if(v)data[u+'_'+k]=v;
+    });
+    var un=localStorage.getItem('arq_'+u+'_UN');
+    if(un)data[u+'_UN']=un;
+  });
+  return data;
+}
+function _arqApplyData(data){
+  if(!data)return;
+  var keys=['proyectos','clientes','tramites','presupuestos','config',
+            'profNombre','profProfesion','profTelefono','profEmail'];
+  ['u1','u2'].forEach(function(u){
+    keys.forEach(function(k){
+      if(data[u+'_'+k]!==undefined)localStorage.setItem('arq_'+u+'_'+k,data[u+'_'+k]);
+    });
+    if(data[u+'_UN'])localStorage.setItem('arq_'+u+'_UN',data[u+'_UN']);
+  });
+  if(data.logo){localStorage.setItem('arq_logo',data.logo);loadLogo();}
+}
+var _arqSkipNext=false;
+function _arqPushToFirebase(){
+  if(!window._arqSave)return;
+  _arqSkipNext=true;
+  window._arqSave(_arqGetAllData()).then(function(){
+    showSyncARQ('saved');
+    setTimeout(function(){_arqSkipNext=false;},8000);
+  }).catch(function(){showSyncARQ('offline');_arqSkipNext=false;});
+  showSyncARQ('saving');
+}
+function showSyncARQ(st){
+  var el=document.getElementById('arq-sync');
+  if(!el)return;
+  if(st==='saving'){el.textContent='☁ Guardando…';el.style.color='#f0a500';}
+  else if(st==='saved'){el.textContent='✓ Sincronizado';el.style.color='#3b6d11';}
+  else if(st==='offline'){el.textContent='⚠ Sin conexión';el.style.color='#a32d2d';}
+}
+function _arqInitFirebase(){
+  if(!window._arqLoad)return;
+  showSyncARQ('saving');
+  window._arqLoad().then(function(data){
+    if(data){_arqApplyData(data);}
+    showSyncARQ('saved');
+    // Escuchar cambios en tiempo real
+    window._arqListen(function(data){
+      if(_arqSkipNext){return;}
+      var openModal=document.querySelector('.modal.active,.modal[style*="flex"]');
+      if(openModal){return;}
+      _arqApplyData(data);
+      go(CV);
+      showSyncARQ('saved');
+    });
+  }).catch(function(){showSyncARQ('offline');});
+}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function fmt(n){return Number(n||0).toLocaleString('es-CL')}
 function stEst(e){return{ejecucion:'En ejecución',terminado:'Terminado',porEjecutar:'Por ejecutar'}[e]||'Por ejecutar'}
 function stPago(e){return{pagado:'Pagado',pendiente:'Pendiente',cuotas:'En cuotas'}[e]||'Pendiente'}
 function stUrg(e){return{sumaugencia:'Suma urgencia',urgente:'Urgente',ejecutar:'Por ejecutar',paralizado:'Paralizado',posterior:'Posterior'}[e]||'Posterior'}
 
-function setUser(u){CU=u;go(CV)}
+function setUser(u){CU=u;go(CV);}
+// Iniciar Firebase sync al cargar
+(function(){
+  function startARQ(){
+    // Cargar desde localStorage primero (inmediato)
+    go(CV);
+    // Luego sincronizar con Firebase
+    if(window._arqFirebaseReady){_arqInitFirebase();}
+    else{window.addEventListener('arq-firebase-ready',_arqInitFirebase,{once:true});}
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',startARQ);
+  } else {
+    startARQ();
+  }
+})();
 
 // ── Sidebar mobile ──
 function toggleSB(){
@@ -1240,10 +1358,11 @@ function saveConf(){
 function uploadLogo(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){
   localStorage.setItem('arq_logo',e.target.result);
   loadLogo();vConf();
-  /* Guardar también en sessionStorage para detectar que se cargó */
-  sessionStorage.setItem('arq_logo_loaded','1');
+  // Sincronizar logo a Firebase inmediatamente
+  _arqPushToFirebase();
+  showSyncARQ('saving');
 };r.readAsDataURL(f)}
-function deleteLogo(){localStorage.removeItem('arq_logo');loadLogo();vConf()}
+function deleteLogo(){localStorage.removeItem('arq_logo');loadLogo();vConf();_arqPushToFirebase();}
 function loadLogo(){var logo=localStorage.getItem('arq_logo');var img=document.getElementById('LOGO');var ph=document.getElementById('LOGOPH');if(logo&&img&&ph){img.src=logo;img.style.display='block';ph.style.display='none'}else if(img&&ph){img.style.display='none';ph.style.display=''}}
 function sincLogo(){
   /* Exportar logo como archivo para cargarlo en otro dispositivo */
