@@ -2,8 +2,14 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ARQgestión</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='28' fill='%230f1923'/><polygon points='60,18 100,78 20,78' fill='none' stroke='%23e8c97a' stroke-width='3.5' stroke-linejoin='round'/><rect x='47' y='78' width='26' height='20' rx='0' fill='none' stroke='%23e8c97a' stroke-width='3'/><rect x='53' y='82' width='14' height='16' rx='2' fill='%23e8c97a' opacity='.2'/><line x1='60' y1='18' x2='60' y2='78' stroke='%23e8c97a' stroke-width='1.5' opacity='.4'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='28' fill='%230f1923'/><polygon points='60,18 100,78 20,78' fill='none' stroke='%23e8c97a' stroke-width='3.5' stroke-linejoin='round'/><rect x='47' y='78' width='26' height='20' rx='0' fill='none' stroke='%23e8c97a' stroke-width='3'/><rect x='53' y='82' width='14' height='16' rx='2' fill='%23e8c97a' opacity='.2'/><line x1='60' y1='18' x2='60' y2='78' stroke='%23e8c97a' stroke-width='1.5' opacity='.4'/></svg>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ARQgestión">
+<meta name="theme-color" content="#0f1923">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -171,70 +177,18 @@ th,td{padding:7px 8px;font-size:12px}}
   </div>
   <div id="MOD"></div>
 </div>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
-// ── Firebase config ──
-var firebaseConfig = {
-  apiKey: "AIzaSyBa5CdkWG24Qy21ZvwVCTdBzui6UmOm_GY",
-  authDomain: "arqgestion-29bbf.firebaseapp.com",
-  projectId: "arqgestion-29bbf",
-  storageBucket: "arqgestion-29bbf.firebasestorage.app",
-  messagingSenderId: "155303276085",
-  appId: "1:155303276085:web:432db611b823bd25160b7c"
-};
-firebase.initializeApp(firebaseConfig);
-var db = firebase.firestore();
-
-// ── Storage (Firebase + localStorage fallback) ──
+// ── Storage ──
 var CU='u1';
-var _cache={};
-
-function rdb(k,d){
-  // Return from cache (populated async by loadAll)
-  var key='arq_'+CU+'_'+k;
-  if(_cache[key]!==undefined)return _cache[key];
-  // fallback to localStorage while loading
-  try{var v=localStorage.getItem(key);return v?JSON.parse(v):d}catch(e){return d}
-}
-
-function wdb(k,v){
-  var key='arq_'+CU+'_'+k;
-  _cache[key]=v;
-  // also write localStorage as immediate fallback
-  try{localStorage.setItem(key,JSON.stringify(v))}catch(e){}
-  // write to Firestore
-  db.collection('usuarios').doc(CU).collection('datos').doc(k).set({value:JSON.stringify(v)})
-    .catch(function(e){console.warn('Firestore write error:',e)});
-}
-
-function loadAll(callback){
-  db.collection('usuarios').doc(CU).collection('datos').get()
-    .then(function(snap){
-      snap.forEach(function(doc){
-        var key='arq_'+CU+'_'+doc.id;
-        try{_cache[key]=JSON.parse(doc.data().value)}catch(e){_cache[key]=doc.data().value}
-        // sync to localStorage
-        try{localStorage.setItem(key,doc.data().value)}catch(e){}
-      });
-      if(callback)callback();
-    })
-    .catch(function(e){
-      console.warn('Firestore load error - using localStorage:',e);
-      if(callback)callback();
-    });
-}
+function rdb(k,d){try{var v=localStorage.getItem('arq_'+CU+'_'+k);return v?JSON.parse(v):d}catch(e){return d}}
+function wdb(k,v){localStorage.setItem('arq_'+CU+'_'+k,JSON.stringify(v))}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function fmt(n){return Number(n||0).toLocaleString('es-CL')}
 function stEst(e){return{ejecucion:'En ejecución',terminado:'Terminado',porEjecutar:'Por ejecutar'}[e]||'Por ejecutar'}
 function stPago(e){return{pagado:'Pagado',pendiente:'Pendiente',cuotas:'En cuotas'}[e]||'Pendiente'}
 function stUrg(e){return{sumaugencia:'Suma urgencia',urgente:'Urgente',ejecutar:'Por ejecutar',paralizado:'Paralizado',posterior:'Posterior'}[e]||'Posterior'}
 
-function setUser(u){
-  CU=u;
-  document.getElementById('MAIN').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:60vh;gap:12px"><div style="font-size:24px">☁️</div><div style="font-size:14px">Cargando datos de '+u+'...</div></div>';
-  loadAll(function(){go(CV)});
-}
+function setUser(u){CU=u;go(CV)}
 
 // ── Sidebar mobile ──
 function toggleSB(){
@@ -1256,7 +1210,12 @@ function vConf(){
     '<div class="tsm tx2 mb2">Aparecerá en el sidebar y en los informes PDF.</div>'+
     '<div id="LPREV" style="margin-bottom:12px;min-height:50px">'+( localStorage.getItem('arq_logo')?'<img src="'+localStorage.getItem('arq_logo')+'" style="max-height:60px;max-width:160px;border-radius:4px">':'<span class="tsm tx2">Sin logo</span>')+'</div>'+
     '<input type="file" id="LFILE" accept="image/*" onchange="uploadLogo(this)" style="font-size:13px">'+
-    (localStorage.getItem('arq_logo')?'<br><button class="btn btn-sm btn-d mt2" onclick="deleteLogo()">Eliminar logo</button>':'')+
+    (localStorage.getItem('arq_logo')?
+  '<br><button class="btn btn-sm btn-d mt2" onclick="deleteLogo()">Eliminar logo</button>'+
+  '<br><button class="btn btn-sm mt2" style="background:#e8c97a22;color:#856404;border:1px solid #e8c97a55" onclick="sincLogo()">⬇ Exportar logo (para otros dispositivos)</button>'
+  :'<div style="font-size:11px;color:#856404;background:#faeeda;border-radius:6px;padding:6px 10px;margin-top:6px">'+
+  '⚠ Si usas esta app en otro dispositivo (celular), debes subir el logo allí también. '+
+  'El logo se guarda localmente en cada dispositivo.</div>')+
     '</div>'+
     '<div class="card"><div class="sec-ttl">Exportar / Importar datos</div>'+
     '<div class="tsm tx2 mb2">Los datos se guardan en este navegador. Exporta para hacer backup o para trasladarlos.</div>'+
@@ -1278,17 +1237,39 @@ function saveConf(){
   updateUSel();
   alert('✓ Configuración guardada');
 }
-function uploadLogo(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){var data=e.target.result;localStorage.setItem('arq_logo',data);_cache['arq_logo']=data;db.collection('config').doc('logo').set({value:data}).catch(function(e){console.warn(e)});loadLogo();vConf()};r.readAsDataURL(f)}
-function deleteLogo(){localStorage.removeItem('arq_logo');_cache['arq_logo']=null;db.collection('config').doc('logo').delete().catch(function(e){});loadLogo();vConf()}
+function uploadLogo(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){
+  localStorage.setItem('arq_logo',e.target.result);
+  loadLogo();vConf();
+  /* Guardar también en sessionStorage para detectar que se cargó */
+  sessionStorage.setItem('arq_logo_loaded','1');
+};r.readAsDataURL(f)}
+function deleteLogo(){localStorage.removeItem('arq_logo');loadLogo();vConf()}
 function loadLogo(){var logo=localStorage.getItem('arq_logo');var img=document.getElementById('LOGO');var ph=document.getElementById('LOGOPH');if(logo&&img&&ph){img.src=logo;img.style.display='block';ph.style.display='none'}else if(img&&ph){img.style.display='none';ph.style.display=''}}
+function sincLogo(){
+  /* Exportar logo como archivo para cargarlo en otro dispositivo */
+  var logo=localStorage.getItem('arq_logo');
+  if(!logo){alert('No hay logo cargado en este dispositivo. Ve a Configuración y sube el logo.');return;}
+  var a=document.createElement('a');
+  var blob=new Blob([logo],{type:'text/plain'});
+  a.href=URL.createObjectURL(blob);
+  a.download='arq-logo-backup.txt';
+  a.click();
+}
+function cargarLogoDesdeTexto(txt){
+  if(txt&&txt.startsWith('data:')){
+    localStorage.setItem('arq_logo',txt);
+    loadLogo();
+    alert('✓ Logo cargado correctamente');
+  }
+}
 function updateUSel(){var s=document.getElementById('USEL');if(!s)return;s.options[0].text=localStorage.getItem('arq_u1_UN')||'Usuario 1';s.options[1].text=localStorage.getItem('arq_u2_UN')||'Usuario 2'}
 function exportData(){
   var data={};
   ['proyectos','clientes','tramites','presupuestos','config'].forEach(function(k){
-    data['u1_'+k]=_cache['arq_u1_'+k]||JSON.parse(localStorage.getItem('arq_u1_'+k)||'null');
-    data['u2_'+k]=_cache['arq_u2_'+k]||JSON.parse(localStorage.getItem('arq_u2_'+k)||'null');
+    data['u1_'+k]=JSON.parse(localStorage.getItem('arq_u1_'+k)||'null');
+    data['u2_'+k]=JSON.parse(localStorage.getItem('arq_u2_'+k)||'null');
   });
-  data.logo=_cache['arq_logo']||localStorage.getItem('arq_logo');
+  data.logo=localStorage.getItem('arq_logo');
   data.u1_UN=localStorage.getItem('arq_u1_UN');data.u2_UN=localStorage.getItem('arq_u2_UN');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download='arqgestion_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();
@@ -1385,22 +1366,11 @@ function swTab(el,id){
 function closeMod(){document.getElementById('MOD').innerHTML=''}
 
 // ── Init ──
-function initApp(){
-  loadLogo();
-  var iCfg=rdb('config',{empresa:'Mi Estudio de Arquitectura'});
-  document.getElementById('EMPNM').textContent=iCfg.empresa||'Mi Estudio de Arquitectura';
-  updateUSel();
-  go('dashboard');
-}
-
-// Show loading indicator while Firebase loads
-document.getElementById('MAIN').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px"><div style="font-size:32px">☁️</div><div style="font-size:15px;font-weight:600">Conectando con la nube...</div><div style="font-size:13px;color:var(--tx2)">Cargando tus datos</div></div>';
 loadLogo();
+var iCfg=rdb('config',{empresa:'Mi Estudio de Arquitectura'});
+document.getElementById('EMPNM').textContent=iCfg.empresa||'Mi Estudio de Arquitectura';
 updateUSel();
-
-loadAll(function(){
-  initApp();
-});
+go('dashboard');
 </script>
 </body>
 </html>
