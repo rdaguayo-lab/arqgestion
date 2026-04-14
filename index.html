@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARQgestión</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#fff;--bg2:#f5f5f0;--bg3:#eeecea;--bgi:#e6f1fb;--bgd:#fcebeb;--bgs:#eaf3de;--bgw:#faeeda;
+--tx:#1a1a1a;--tx2:#5f5e5a;--tx3:#888780;--txi:#185fa5;--txd:#a32d2d;--txs:#3b6d11;--txw:#854f0b;
+--bd:rgba(0,0,0,.12);--bd2:rgba(0,0,0,.22);--bd3:rgba(0,0,0,.32);
+--bdi:#b5d4f4;--bdd:#f7c1c1;--bds:#c0dd97;--bdw:#fac775;
+--r:8px;--R:12px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+@media(prefers-color-scheme:dark){:root{
+--bg:#1e1e1c;--bg2:#2a2a27;--bg3:#242421;--bgi:#0c447c22;--bgd:#79202044;--bgs:#27500a33;--bgw:#63380644;
+--tx:#e8e6df;--tx2:#b4b2a9;--tx3:#888780;--txi:#85b7eb;--txd:#f09595;--txs:#97c459;--txw:#ef9f27;
+--bd:rgba(255,255,255,.10);--bd2:rgba(255,255,255,.18);--bd3:rgba(255,255,255,.28)}}
+body{font-family:var(--font);background:var(--bg3);color:var(--tx);font-size:14px;height:100vh;overflow:hidden}
+.app{display:flex;height:100vh}
+/* sidebar */
+.sb{width:220px;min-width:220px;background:var(--bg);border-right:.5px solid var(--bd);display:flex;flex-direction:column;overflow-y:auto;transition:transform .25s;z-index:200}
+.sb-logo{padding:16px;border-bottom:.5px solid var(--bd)}
+.sb-logoname{font-size:12px;color:var(--tx2);margin-top:4px}
+.sb-logoph{font-size:17px;font-weight:600}
+.sb-logoimg{width:100%;max-height:44px;object-fit:contain;display:none;margin-bottom:4px}
+.sb-sec{padding:8px 0}
+.sb-lbl{font-size:10px;font-weight:600;color:var(--tx3);padding:4px 16px;text-transform:uppercase;letter-spacing:.6px}
+.sb-item{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;font-size:13px;color:var(--tx2);border-left:2px solid transparent;transition:all .15s}
+.sb-item:hover{background:var(--bg2);color:var(--tx)}
+.sb-item.active{color:var(--tx);background:var(--bg2);border-left-color:var(--tx)}
+.sb-ico{font-size:14px;width:18px;text-align:center}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:199}
+.sb-overlay.on{display:block}
+/* main */
+.mn{flex:1;overflow:auto;display:flex;flex-direction:column;min-width:0}
+.topbar{background:var(--bg);border-bottom:.5px solid var(--bd);padding:10px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+.topbar-ttl{font-size:15px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar-act{display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+.hbtn{display:none;background:none;border:.5px solid var(--bd2);border-radius:var(--r);padding:6px 9px;cursor:pointer;color:var(--tx);font-size:18px;line-height:1}
+.content{padding:16px;flex:1}
+.sb-user{padding:12px 16px;margin-top:auto;border-top:.5px solid var(--bd)}
+/* buttons */
+.btn{border:.5px solid var(--bd2);background:var(--bg);color:var(--tx);padding:6px 12px;border-radius:var(--r);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;transition:all .15s;font-family:var(--font)}
+.btn:hover{background:var(--bg2)}
+.btn-p{background:var(--tx);color:var(--bg);border-color:var(--tx)}.btn-p:hover{opacity:.85}
+.btn-d{color:var(--txd);border-color:var(--bdd)}.btn-d:hover{background:var(--bgd)}
+.btn-s{color:var(--txs);border-color:var(--bds)}.btn-s:hover{background:var(--bgs)}
+.btn-sm{padding:4px 8px;font-size:12px}
+/* layout */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.card{background:var(--bg);border:.5px solid var(--bd);border-radius:var(--R);padding:16px;margin-bottom:12px}
+.stat{background:var(--bg2);border-radius:var(--r);padding:14px}
+.stat-lbl{font-size:12px;color:var(--tx2);margin-bottom:4px}
+.stat-val{font-size:22px;font-weight:600}
+.sec-ttl{font-size:13px;font-weight:600;margin-bottom:12px}
+/* badges */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.b-urgente{background:var(--bgd);color:var(--txd)}.b-ejecutar{background:var(--bgw);color:var(--txw)}
+.b-posterior{background:var(--bg2);color:var(--tx2)}.b-ejecucion{background:var(--bgi);color:var(--txi)}
+.b-terminado{background:var(--bgs);color:var(--txs)}.b-porEjecutar{background:var(--bg2);color:var(--tx2)}
+.b-pagado{background:var(--bgs);color:var(--txs)}.b-pendiente{background:var(--bgd);color:var(--txd)}
+.b-cuotas{background:var(--bgw);color:var(--txw)}
+/* fields */
+.fld{margin-bottom:12px}
+.fld label{display:block;font-size:12px;color:var(--tx2);margin-bottom:4px;font-weight:500}
+.fld input,.fld select,.fld textarea,.inp{width:100%;padding:7px 10px;border:.5px solid var(--bd2);border-radius:var(--r);background:var(--bg);color:var(--tx);font-size:13px;font-family:var(--font)}
+.fld input:focus,.fld select:focus,.fld textarea:focus,.inp:focus{outline:none;border-color:var(--bd3)}
+.fld textarea{min-height:72px;resize:vertical}
+/* table */
+.twrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-weight:600;font-size:11px;color:var(--tx2);text-align:left;padding:8px 10px;border-bottom:.5px solid var(--bd);text-transform:uppercase;letter-spacing:.3px}
+td{padding:9px 10px;border-bottom:.5px solid var(--bd);color:var(--tx)}
+tr:hover td{background:var(--bg2)}
+tr.urg td:first-child{border-left:3px solid var(--txd)}
+tr.eje td:first-child{border-left:3px solid var(--txw)}
+tr.pos td:first-child{border-left:3px solid var(--bd)}
+/* modal */
+.mov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:20px;z-index:1000;overflow-y:auto}
+.modal{background:var(--bg);border-radius:var(--R);border:.5px solid var(--bd);width:100%;max-width:700px;padding:24px;margin:auto}
+.mhdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:.5px solid var(--bd)}
+.mttl{font-size:16px;font-weight:600}
+.xbtn{background:none;border:none;cursor:pointer;color:var(--tx2);font-size:24px;padding:0 4px;line-height:1}
+/* tabs */
+.tabs{display:flex;gap:4px;padding-bottom:14px;border-bottom:.5px solid var(--bd);margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:6px 12px;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:500;color:var(--tx2);border:.5px solid transparent;transition:all .15s}
+.tab:hover{background:var(--bg2)}
+.tab.on{background:var(--bg2);color:var(--tx);border-color:var(--bd)}
+/* misc */
+.chk-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:.5px solid var(--bd)}
+.chk-row label{flex:1;font-size:13px;cursor:pointer}
+.chk-row.done label{text-decoration:line-through;color:var(--tx3)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.dot-sumaugencia{background:#c0000a}.dot-urgente{background:#e24b4a}.dot-ejecutar{background:#ef9f27}.dot-paralizado{background:#888}.dot-posterior{background:var(--bd2)}
+.b-paralizado{background:#e8e8e8;color:#555}.b-sumaugencia{background:#fcebeb;color:#a32d2d;border:1px solid #f7c1c1}
+.empty{text-align:center;padding:40px;color:var(--tx3);font-size:13px}
+.hr{border:none;border-top:.5px solid var(--bd);margin:16px 0}
+.row{display:flex;gap:8px;align-items:center}
+.f1{flex:1}
+.tx2{color:var(--tx2)}.tsm{font-size:12px}.mt1{margin-top:4px}.mt2{margin-top:8px}.mt3{margin-top:16px}.mb2{margin-bottom:8px}.mb3{margin-bottom:16px}
+.hidden{display:none!important}
+.cloud-a,.cloud-d,.cloud-n{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--r);font-size:11px;font-weight:600;text-decoration:none;cursor:pointer}
+.cloud-a{background:#e8f4fd;color:#1a73e8;border:.5px solid #b8d4f8}
+.cloud-d{background:#e8f0fb;color:#0061ff;border:.5px solid #aac4f8}
+.cloud-n{background:var(--bg2);color:var(--tx3);border:.5px solid var(--bd)}
+.cod{font-family:monospace;font-size:11px;background:var(--bg2);padding:2px 6px;border-radius:4px;cursor:pointer}
+/* mobile */
+@media(max-width:768px){
+.sb{position:fixed;top:0;left:0;bottom:0;transform:translateX(-100%);box-shadow:4px 0 20px rgba(0,0,0,.15)}
+.sb.open{transform:translateX(0)}
+.hbtn{display:flex;align-items:center;justify-content:center}
+.content{padding:12px}
+.g2,.g3,.g4{grid-template-columns:1fr}
+.g4{grid-template-columns:1fr 1fr}
+.mov{padding:0;align-items:flex-end}
+.modal{border-radius:var(--R) var(--R) 0 0;max-height:92vh;overflow-y:auto;max-width:100%}
+th,td{padding:7px 8px;font-size:12px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sb" id="SB">
+    <div class="sb-logo">
+      <img class="sb-logoimg" id="LOGO" src="" alt="">
+      <div class="sb-logoph" id="LOGOPH">ARQ<span style="font-weight:300;color:var(--tx2)">gestión</span></div>
+      <div class="sb-logoname" id="EMPNM">Mi Estudio de Arquitectura</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Principal</div>
+      <div class="sb-item" data-v="dashboard" onclick="go('dashboard')"><span class="sb-ico">◈</span>Dashboard</div>
+      <div class="sb-item" data-v="proyectos" onclick="go('proyectos')"><span class="sb-ico">⊟</span>Proyectos</div>
+      <div class="sb-item" data-v="buscador" onclick="go('buscador')"><span class="sb-ico">⊕</span>Buscador</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Datos</div>
+      <div class="sb-item" data-v="clientes" onclick="go('clientes')"><span class="sb-ico">⊡</span>Clientes</div>
+      <div class="sb-item" data-v="tramites" onclick="go('tramites')"><span class="sb-ico">⊞</span>Trámites</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Informes</div>
+      <div class="sb-item" data-v="informes" onclick="go('informes')"><span class="sb-ico">⊘</span>Informes / PDF</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Finanzas</div>
+      <div class="sb-item" data-v="presupuestos" onclick="go('presupuestos')"><span class="sb-ico">⊛</span>Presupuestos</div>
+      <div class="sb-item" data-v="honorarios" onclick="go('honorarios')"><span class="sb-ico">⊜</span>Honorarios</div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">Sistema</div>
+      <div class="sb-item" data-v="config" onclick="go('config')"><span class="sb-ico">⊗</span>Configuración</div>
+    </div>
+    <div class="sb-user">
+      <div class="tsm tx2 mb2">Usuario activo:</div>
+      <select id="USEL" onchange="setUser(this.value)" class="inp" style="width:100%">
+        <option value="u1">Usuario 1</option>
+        <option value="u2">Usuario 2</option>
+      </select>
+    </div>
+  </div>
+  <div class="sb-overlay" id="OV" onclick="closeSB()"></div>
+  <div class="mn">
+    <div class="topbar">
+      <button class="hbtn" onclick="toggleSB()">&#9776;</button>
+      <div class="topbar-ttl" id="PTTL">Dashboard</div>
+      <div class="topbar-act" id="PACT"></div>
+    </div>
+    <div class="content" id="MAIN"></div>
+  </div>
+  <div id="MOD"></div>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+// ── Firebase config ──
+var firebaseConfig = {
+  apiKey: "AIzaSyBa5CdkWG24Qy21ZvwVCTdBzui6UmOm_GY",
+  authDomain: "arqgestion-29bbf.firebaseapp.com",
+  projectId: "arqgestion-29bbf",
+  storageBucket: "arqgestion-29bbf.firebasestorage.app",
+  messagingSenderId: "155303276085",
+  appId: "1:155303276085:web:432db611b823bd25160b7c"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+// ── Storage (Firebase + localStorage fallback) ──
+var CU='u1';
+var _cache={};
+
+function rdb(k,d){
+  // Return from cache (populated async by loadAll)
+  var key='arq_'+CU+'_'+k;
+  if(_cache[key]!==undefined)return _cache[key];
+  // fallback to localStorage while loading
+  try{var v=localStorage.getItem(key);return v?JSON.parse(v):d}catch(e){return d}
+}
+
+function wdb(k,v){
+  var key='arq_'+CU+'_'+k;
+  _cache[key]=v;
+  // also write localStorage as immediate fallback
+  try{localStorage.setItem(key,JSON.stringify(v))}catch(e){}
+  // write to Firestore
+  db.collection('usuarios').doc(CU).collection('datos').doc(k).set({value:JSON.stringify(v)})
+    .catch(function(e){console.warn('Firestore write error:',e)});
+}
+
+function loadAll(callback){
+  db.collection('usuarios').doc(CU).collection('datos').get()
+    .then(function(snap){
+      snap.forEach(function(doc){
+        var key='arq_'+CU+'_'+doc.id;
+        try{_cache[key]=JSON.parse(doc.data().value)}catch(e){_cache[key]=doc.data().value}
+        // sync to localStorage
+        try{localStorage.setItem(key,doc.data().value)}catch(e){}
+      });
+      if(callback)callback();
+    })
+    .catch(function(e){
+      console.warn('Firestore load error - using localStorage:',e);
+      if(callback)callback();
+    });
+}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
+function fmt(n){return Number(n||0).toLocaleString('es-CL')}
+function stEst(e){return{ejecucion:'En ejecución',terminado:'Terminado',porEjecutar:'Por ejecutar'}[e]||'Por ejecutar'}
+function stPago(e){return{pagado:'Pagado',pendiente:'Pendiente',cuotas:'En cuotas'}[e]||'Pendiente'}
+function stUrg(e){return{sumaugencia:'Suma urgencia',urgente:'Urgente',ejecutar:'Por ejecutar',paralizado:'Paralizado',posterior:'Posterior'}[e]||'Posterior'}
+
+function setUser(u){
+  CU=u;
+  document.getElementById('MAIN').innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:60vh;gap:12px"><div style="font-size:24px">☁️</div><div style="font-size:14px">Cargando datos de '+u+'...</div></div>';
+  loadAll(function(){go(CV)});
+}
+
+// ── Sidebar mobile ──
+function toggleSB(){
+  var sb=document.getElementById('SB'),ov=document.getElementById('OV');
+  if(sb.classList.contains('open')){closeSB()}else{sb.classList.add('open');ov.classList.add('on')}
+}
+function closeSB(){
+  document.getElementById('SB').classList.remove('open');
+  document.getElementById('OV').classList.remove('on');
+}
+
+// ── Navigation ──
+var CV='dashboard';
+var TITLES={dashboard:'Dashboard',proyectos:'Proyectos',buscador:'Buscador / Base de datos',clientes:'Clientes',tramites:'Tipos de Trámites',informes:'Informes / PDF',presupuestos:'Presupuestos',honorarios:'Honorarios',config:'Configuración'};
+function go(v){
+  if(window.innerWidth<=768)closeSB();
+  CV=v;
+  document.querySelectorAll('.sb-item').forEach(function(n){n.classList.remove('active')});
+  var el=document.querySelector('.sb-item[data-v="'+v+'"]');
+  if(el)el.classList.add('active');
+  document.getElementById('PTTL').textContent=TITLES[v]||v;
+  document.getElementById('PACT').innerHTML='';
+  document.getElementById('MAIN').innerHTML='';
+  ({dashboard:vDash,proyectos:vProys,buscador:vBusc,clientes:vClis,tramites:vTrams,informes:vInformes,presupuestos:vPres,honorarios:vHon,config:vConf})[v]&&({dashboard:vDash,proyectos:vProys,buscador:vBusc,clientes:vClis,tramites:vTrams,informes:vInformes,presupuestos:vPres,honorarios:vHon,config:vConf})[v]();
+}
+
+// ── Default tramites ──
+function defTrams(){return[
+  {id:'t1',nombre:'Permiso de edificación',desc:'Tramitación para construcción nueva',chk:['Formulario único de edificación','Planos de arquitectura firmados','Cálculo estructural','Especificaciones técnicas','Presupuesto de obra','Certificado de informaciones previas','Escritura vigente','Certificado de gravámenes']},
+  {id:'t2',nombre:'Ampliación',desc:'Ampliación de superficie construida existente',chk:['Formulario único','Planos de ampliación','Especificaciones técnicas','Plano de ubicación','Escritura','Certificado de informaciones previas']},
+  {id:'t3',nombre:'Ampliación obra menor',desc:'Ampliación menor sin profesional',chk:['Formulario','Planos','Especificaciones técnicas']},
+  {id:'t4',nombre:'Regularización Ley 20898 hasta 90m²',desc:'Regularización hasta 90m²',chk:['Solicitud formulario','Declaración jurada propietario','Planos de arquitectura','Informe técnico','Escritura','Certificado de dominio vigente']},
+  {id:'t5',nombre:'Regularización Ley 20898 hasta 140m²',desc:'Regularización entre 90 y 140m²',chk:['Solicitud formulario','Declaración jurada','Planos de arquitectura','Informe técnico','Certificado de informaciones previas','Escritura','Certificado de dominio vigente']},
+  {id:'t6',nombre:'Regularización obra menor antes 1959',desc:'Construcciones anteriores a 1959',chk:['Formulario','Planos de lo existente','Fotografías','Informe técnico']},
+  {id:'t7',nombre:'Regularización de microempresas',desc:'Microempresas familiares en vivienda',chk:['Formulario','Declaración de microempresa familiar','Planos','Informes técnicos']},
+  {id:'t8',nombre:'Obra menor',desc:'Trabajos de obra menor',chk:['Formulario','Planos','Especificaciones técnicas']},
+  {id:'t9',nombre:'Fusión',desc:'Fusión de predios colindantes',chk:['Escrituras de todos los predios','Planos de fusión','Memoria explicativa','Certificado de dominio','RPI','Declaración de bien raíz']},
+  {id:'t10',nombre:'Subdivisión',desc:'Subdivisión de un predio',chk:['Escritura','Plano de subdivisión','Memoria explicativa','Certificado de dominio','Informe urbanístico','RPI']},
+]}
+
+// ── Code generation ──
+function genCod(tramite,cliente){
+  var tmap={'Permiso de edificación':'PEON','Ampliación':'AMP','Ampliación obra menor':'AMPOM','Regularización Ley 20898 hasta 90':'REG90','Regularización Ley 20898 hasta 140':'REG140','Regularización obra menor antes':'REG59','Regularización de microempresas':'REGME','Obra menor':'OM','Fusión':'FUS','Subdivisión':'SUB'};
+  var ct='PROY';
+  for(var k in tmap){if(tramite&&tramite.indexOf(k)>=0){ct=tmap[k];break}}
+  if(ct==='PROY'&&tramite){ct=tramite.split(' ').map(function(w){return w[0]||''}).join('').toUpperCase().slice(0,6)}
+  var cc='CLI';
+  if(cliente){
+    var parts=cliente.trim().toUpperCase().split(/\s+/);
+    if(parts.length===1){cc=parts[0].slice(0,5)}
+    else{var ap=parts[parts.length-1].slice(0,4);var ini=parts.slice(0,-1).map(function(p){return p[0]||''}).join('');cc=ini+ap}
+  }
+  return ct+'_'+cc+'_'+new Date().getFullYear();
+}
+function copyCod(txt){
+  try{navigator.clipboard.writeText(txt)}catch(e){var t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t)}
+}
+
+// ── Cloud badge helper ──
+function cloudBadge(p){
+  if(!p.nubeUrl)return '<span class="cloud-n">—</span>';
+  var lbl=p.nubeServicio==='drive'?'📁 Drive':p.nubeServicio==='dropbox'?'📦 Dropbox':'🔗 Link';
+  var cls=p.nubeServicio==='drive'?'cloud-a':p.nubeServicio==='dropbox'?'cloud-d':'cloud-n';
+  return '<a href="'+p.nubeUrl+'" target="_blank" class="'+cls+'">'+lbl+'</a>';
+}
+
+// ══════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════
+function vDash(){
+  var ps=rdb('proyectos',[]);
+  document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="newProy()">+ Nuevo proyecto</button>';
+
+  // ── Proyectos stats ──
+  var totProy=ps.length;
+  var sumUrg=ps.filter(function(p){return p.urgencia==='sumaugencia'}).length;
+  var urg=ps.filter(function(p){return p.urgencia==='urgente'||p.urgencia==='sumaugencia'}).length;
+  var eje=ps.filter(function(p){return p.estado==='ejecucion'}).length;
+  var paraliz=ps.filter(function(p){return p.urgencia==='paralizado'}).length;
+
+  // ── Financiero ──
+  var totHon=ps.reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+  var totAdl=ps.reduce(function(a,p){return a+parseFloat(p.adelanto||0)},0);
+  var totSaldo=ps.reduce(function(a,p){return a+parseFloat(p.saldo||0)},0);
+  var cobrado=ps.filter(function(p){return p.estadoPago==='pagado'}).reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+  var enCuotas=ps.filter(function(p){return p.estadoPago==='cuotas'}).reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+  var pendiente=ps.filter(function(p){return p.estadoPago==='pendiente'}).reduce(function(a,p){return a+parseFloat(p.saldo||p.totalHonorarios||0)},0);
+  var pctCobrado=totHon>0?Math.round(cobrado/totHon*100):0;
+  var pctPendiente=totHon>0?Math.round(pendiente/totHon*100):0;
+
+  // ── Proyectos por prioridad ──
+  var sorted=[].concat(ps).sort(function(a,b){return ({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[a.urgencia]||4)-({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[b.urgencia]||4)});
+  var rows=sorted.length===0?'<div class="empty">Sin proyectos.<br>Crea el primero con el botón arriba.</div>':
+    sorted.slice(0,8).map(function(p){
+      return '<div onclick="editProy(\''+p.id+'\')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:.5px solid var(--bd);cursor:pointer">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+        '<span class="dot dot-'+(p.urgencia==='sumaugencia'?'urgente':p.urgencia||'posterior')+'"></span>'+
+        '<div><div style="font-size:13px;font-weight:600">'+(p.nombre||'Sin nombre')+'</div>'+
+        '<div class="tsm tx2">'+(p.tipoTramite||'—')+' · '+(p.cliente||'—')+'</div></div></div>'+
+        '<div style="display:flex;align-items:center;gap:6px">'+
+        '<span class="badge b-'+(p.urgencia==='sumaugencia'?'urgente':p.urgencia||'posterior')+'">'+stUrg(p.urgencia)+'</span>'+
+        '<span class="badge b-'+(p.estado||'porEjecutar')+'">'+stEst(p.estado)+'</span></div></div>';
+    }).join('');
+
+  // ── Pagos pendientes detalle ──
+  var pendRows=ps.filter(function(p){return p.estadoPago!=='pagado'&&p.totalHonorarios}).map(function(p){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:.5px solid var(--bd);cursor:pointer" onclick="editProy(\''+p.id+'\')">'+
+      '<div><div style="font-size:13px;font-weight:500">'+(p.nombre||'—')+'</div>'+
+      '<div class="tsm tx2">'+(p.cliente||'—')+'</div></div>'+
+      '<div style="text-align:right">'+
+      '<div style="font-size:13px;font-weight:600;color:var(--txd)">$'+fmt(p.saldo||p.totalHonorarios)+'</div>'+
+      '<span class="badge b-'+(p.estadoPago||'pendiente')+'">'+stPago(p.estadoPago)+'</span></div></div>';
+  }).join('')||'<div class="empty" style="padding:20px">Sin deudas pendientes ✓</div>';
+
+  // ── Progress bar helper ──
+  function bar(pct,color){return '<div style="background:var(--bg3);border-radius:4px;height:8px;overflow:hidden;margin-top:6px"><div style="background:'+color+';height:100%;width:'+pct+'%;border-radius:4px;transition:width .4s"></div></div>';}
+
+  document.getElementById('MAIN').innerHTML=
+    // ── Fila 1: stats de proyectos ──
+    '<div class="g4 mb2">'+
+    '<div class="stat" style="cursor:pointer" onclick="go(\'proyectos\')"><div class="stat-lbl">📁 Total proyectos</div><div class="stat-val">'+totProy+'</div><div class="tsm tx2 mt1">'+eje+' en ejecución</div></div>'+
+    '<div class="stat" style="cursor:pointer;border:.5px solid var(--bdd)" onclick="go(\'proyectos\')"><div class="stat-lbl" style="color:var(--txd)">⚡ Urgentes</div><div class="stat-val" style="color:var(--txd)">'+urg+'</div><div class="tsm tx2 mt1">'+(sumUrg?sumUrg+' suma urgencia':paraliz+' paralizado'+(paraliz!==1?'s':''))+'</div></div>'+
+    '<div class="stat" style="border:.5px solid var(--bds)"><div class="stat-lbl" style="color:var(--txs)">✓ Cobrado</div><div class="stat-val" style="color:var(--txs)">$'+fmt(cobrado)+'</div><div class="tsm tx2 mt1">'+pctCobrado+'% del total</div>'+bar(pctCobrado,'var(--txs)')+'</div>'+
+    '<div class="stat" style="border:.5px solid var(--bdw)"><div class="stat-lbl" style="color:var(--txw)">⏳ Por cobrar</div><div class="stat-val" style="color:var(--txw)">$'+fmt(pendiente+enCuotas)+'</div><div class="tsm tx2 mt1">'+pctPendiente+'% del total</div>'+bar(pctPendiente,'var(--txw)')+'</div>'+
+    '</div>'+
+    // ── Fila 2: financiero resumen ──
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">'+
+    '<div class="stat"><div class="stat-lbl">💰 Total honorarios</div><div style="font-size:20px;font-weight:700">$'+fmt(totHon)+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">📥 Adelantos recibidos</div><div style="font-size:20px;font-weight:700;color:var(--txs)">$'+fmt(totAdl)+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">🔄 En cuotas</div><div style="font-size:20px;font-weight:700;color:var(--txw)">$'+fmt(enCuotas)+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">🔴 Saldo pendiente</div><div style="font-size:20px;font-weight:700;color:var(--txd)">$'+fmt(totSaldo)+'</div></div>'+
+    '</div>'+
+    // ── Fila 3: barra global cobrado/pendiente ──
+    '<div class="card mb2" style="padding:14px 16px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+    '<span style="font-size:12px;font-weight:600">Avance financiero global</span>'+
+    '<span class="tsm tx2">$'+fmt(cobrado)+' cobrado de $'+fmt(totHon)+'</span></div>'+
+    '<div style="background:var(--bg3);border-radius:6px;height:14px;overflow:hidden">'+
+    '<div style="background:var(--txs);height:100%;width:'+pctCobrado+'%;border-radius:6px;transition:width .5s;position:relative">'+
+    (pctCobrado>8?'<span style="position:absolute;right:8px;top:0;line-height:14px;font-size:10px;font-weight:700;color:#fff">'+pctCobrado+'%</span>':'')+
+    '</div></div>'+
+    '<div style="display:flex;gap:16px;margin-top:8px;font-size:11px">'+
+    '<span style="color:var(--txs)">■ Cobrado '+pctCobrado+'%</span>'+
+    '<span style="color:var(--txw)">■ En cuotas '+(totHon>0?Math.round(enCuotas/totHon*100):0)+'%</span>'+
+    '<span style="color:var(--txd)">■ Pendiente '+pctPendiente+'%</span>'+
+    '</div></div>'+
+    // ── Fila 4: proyectos + pagos pendientes ──
+    '<div class="g2">'+
+    '<div class="card"><div class="sec-ttl">Proyectos por prioridad</div>'+rows+'</div>'+
+    '<div class="card"><div class="sec-ttl">Saldos por cobrar</div>'+pendRows+'</div>'+
+    '</div>';
+}
+
+// ══════════════════════════════════════
+// PROYECTOS
+// ══════════════════════════════════════
+function goFiltrado(filtro){
+  go('proyectos');
+  // After render, apply filter
+  setTimeout(function(){
+    if(filtro==='urgente'){
+      var fu=document.getElementById('FU');if(fu){fu.value='urgente';renderTabla()}
+    } else if(filtro==='ejecucion'){
+      var fe=document.getElementById('FE');if(fe){fe.value='ejecucion';renderTabla()}
+    } else if(filtro==='pendiente'){
+      // Go to buscador with pago filter
+      go('buscador');
+      setTimeout(function(){var sp=document.getElementById('SP');if(sp){sp.value='pendiente';doSearch()}},50);
+    }
+  },50);
+}
+function vProys(){
+  document.getElementById('PACT').innerHTML=
+    '<select id="FU" onchange="renderTabla()" class="inp" style="font-size:12px;padding:4px 8px">'+
+    '<option value="">Todas las prioridades</option><option value="sumaugencia">Suma urgencia</option><option value="urgente">Urgente</option>'+
+    '<option value="ejecutar">Por ejecutar</option><option value="paralizado">Paralizado</option><option value="posterior">Posterior</option></select>'+
+    '<select id="FE" onchange="renderTabla()" class="inp" style="font-size:12px;padding:4px 8px">'+
+    '<option value="">Todos los estados</option><option value="ejecucion">En ejecución</option>'+
+    '<option value="porEjecutar">Por ejecutar</option><option value="terminado">Terminado</option></select>'+
+    '<button class="btn btn-p btn-sm" onclick="newProy()">+ Nuevo proyecto</button>';
+  document.getElementById('MAIN').innerHTML='<div class="card" id="TABLA"></div>';
+  renderTabla();
+}
+function renderTabla(){
+  var ps=rdb('proyectos',[]);
+  var fu=document.getElementById('FU')?document.getElementById('FU').value:'';
+  var fe=document.getElementById('FE')?document.getElementById('FE').value:'';
+  var sorted=[].concat(ps).sort(function(a,b){return ({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[a.urgencia]||4)-({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[b.urgencia]||4)});
+  if(fu)sorted=sorted.filter(function(p){return p.urgencia===fu});
+  if(fe)sorted=sorted.filter(function(p){return p.estado===fe});
+  var rows=sorted.length===0?'<tr><td colspan="9"><div class="empty">Sin proyectos</div></td></tr>':
+    sorted.map(function(p){
+      var uc=p.urgencia==='sumaugencia'?'urgente':p.urgencia==='urgente'?'urgente':p.urgencia==='ejecutar'?'ejecutar':p.urgencia==='paralizado'?'paralizado':'posterior';
+      var tc=p.urgencia==='urgente'?'urg':p.urgencia==='ejecutar'?'eje':p.urgencia==='paralizado'?'pos':'pos';
+      return '<tr class="'+tc+'">'+
+        '<td><span class="badge b-'+uc+'">'+stUrg(p.urgencia)+'</span></td>'+
+        '<td class="cod" onclick="copyCod(\''+(p.codigo||'')+'\')"><span title="Clic para copiar">'+(p.codigo||'—')+'</span></td>'+
+        '<td style="font-weight:600;cursor:pointer" onclick="editProy(\''+p.id+'\')">'+(p.nombre||'—')+'</td>'+
+        '<td>'+(p.cliente||'—')+'</td>'+
+        '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.tipoTramite||'—')+'</td>'+
+        '<td><span class="badge b-'+(p.estado||'porEjecutar')+'">'+stEst(p.estado)+'</span></td>'+
+        '<td><span class="badge b-'+(p.estadoPago||'pendiente')+'">'+stPago(p.estadoPago)+'</span></td>'+
+        '<td>$'+fmt(p.totalHonorarios)+'</td>'+
+        '<td>'+cloudBadge(p)+'</td>'+
+        '<td style="white-space:nowrap">'+
+        '<button class="btn btn-sm" onclick="editProy(\''+p.id+'\')">Ver</button> '+
+        '<button class="btn btn-sm btn-d" onclick="delProy(\''+p.id+'\')">Eliminar</button></td></tr>';
+    }).join('');
+  document.getElementById('TABLA').innerHTML='<div class="twrap"><table>'+
+    '<thead><tr><th>Prioridad</th><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Trámite</th><th>Estado</th><th>Pago</th><th>Honorarios</th><th>Carpeta</th><th>Acciones</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>';
+}
+function delProy(id){
+  if(!confirm('¿Eliminar este proyecto?'))return;
+  var ps=rdb('proyectos',[]).filter(function(p){return p.id!==id});
+  wdb('proyectos',ps);renderTabla();
+}
+
+// ══════════════════════════════════════
+// MODAL PROYECTO
+// ══════════════════════════════════════
+function newProy(){
+  editProy(null);
+}
+function editProy(id){
+  var ps=rdb('proyectos',[]);
+  var clis=rdb('clientes',[]);
+  var trams=rdb('tramites',defTrams());
+  var p=id?ps.find(function(x){return x.id===id}):null;
+  if(!p)p={id:uid(),nombre:'',clienteId:'',cliente:'',tipoTramite:'',urgencia:'posterior',estado:'porEjecutar',proceso:'diseño',estadoPago:'pendiente',totalHonorarios:0,adelanto:0,saldo:0,descripcionAcuerdo:'',formaCobro:'total',rol:'',rolProp:'',fechaInicio:'',observaciones:'',codigo:'',nubeServicio:'',nubeUrl:'',fojas:'',numEscritura:'',anioEscritura:'',supPredio:'',dNorte:'',dSur:'',dEste:'',dOeste:'',utmNorte:'',utmEste:'',descPredio:'',descProyecto:'',m2:'',materialidad:'',referencias:'',checklist:[],bitacora:[],programa:[],extraCampos:[],especialidades:[]};
+  var isNew=!id;
+  // build options
+  var cliOpts=clis.map(function(c){return '<option value="'+c.id+'"'+(p.clienteId===c.id?' selected':'')+'>'+c.nombre+(c.rut?' · '+c.rut:'')+'</option>'}).join('');
+  var tramOpts=trams.map(function(t){return '<option value="'+t.nombre+'"'+(p.tipoTramite===t.nombre?' selected':'')+'>'+t.nombre+'</option>'}).join('');
+  // build checklist
+  var chkHtml=p.checklist.length===0?'<div class="tsm tx2">Selecciona un trámite para cargar el checklist automáticamente.</div>':
+    p.checklist.map(function(item,i){return '<div class="chk-row'+(item.checked?' done':'')+'" id="CR'+i+'"><input type="checkbox" id="CK'+i+'"'+(item.checked?' checked':'')+' onchange="toggleCR('+i+')" style="width:16px;height:16px"><label for="CK'+i+'">'+item.texto+'</label><button class="btn btn-sm btn-d" onclick="this.closest(\'.chk-row\').remove()">×</button></div>'}).join('');
+  // build bitacora
+  var bitHtml=p.bitacora.length===0?'<div class="empty" style="padding:20px">Sin entradas</div>':
+    p.bitacora.map(function(b,i){return '<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="badge b-posterior tsm">'+b.fecha+'</span><button class="btn btn-sm btn-d" onclick="this.closest(\'.card\').remove()">×</button></div><div style="font-size:13px">'+b.texto+'</div></div>'}).join('');
+  // build programa
+  var progHtml=p.programa.map(function(r,i){return '<div class="row" style="padding:4px 0"><input placeholder="Recinto" class="inp f1" id="REC'+i+'" value="'+(r.recinto||'')+'"><input placeholder="m²" class="inp" id="RECM'+i+'" value="'+(r.m2||'')+'" style="width:70px;margin-left:6px"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:4px">×</button></div>'}).join('');
+  // build especialidades
+  var ESPS_DEF=[
+    {nombre:'Ingeniería estructural',tipo:'m2',hint:'$/m²'},
+    {nombre:'Proyecto agua potable',tipo:'unidad',hint:'$ global'},
+    {nombre:'Proyecto alcantarillado',tipo:'unidad',hint:'$ global'},
+    {nombre:'Proyecto eléctrico',tipo:'unidad',hint:'$ global'},
+    {nombre:'Proyecto de gas',tipo:'global',hint:'$ global'},
+    {nombre:'Topografía',tipo:'global',hint:'$ global'},
+    {nombre:'Fusión de predios',tipo:'lote',hint:'$/lote'},
+    {nombre:'Subdivisión de predios',tipo:'lote',hint:'$/lote'},
+  ];
+  var espHtml=ESPS_DEF.map(function(ed){
+    var ex=p.especialidades.find(function(x){return x.nombre===ed.nombre})||{activo:false,valor:'',cantidad:''};
+    var eid=ed.nombre.replace(/[\s]/g,'_');
+    var tipoLabel=ed.tipo==='m2'?'Por m²':ed.tipo==='lote'?'Por lote':'Global';
+    var tipoColor=ed.tipo==='m2'?'var(--txi)':ed.tipo==='lote'?'var(--txw)':'var(--txs)';
+    return '<div style="padding:9px 0;border-bottom:.5px solid var(--bd)">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:'+(ed.tipo!=='global'?'6':'0')+'px">'+
+      '<input type="checkbox" id="ESP_'+eid+'"'+(ex.activo?' checked':'')+' style="width:16px;height:16px;cursor:pointer" onchange="calcEspTot()">'+
+      '<label for="ESP_'+eid+'" style="flex:1;font-size:13px;cursor:pointer;font-weight:500">'+ed.nombre+'</label>'+
+      '<span style="font-size:10px;font-weight:600;color:'+tipoColor+';background:var(--bg2);padding:2px 6px;border-radius:4px">'+tipoLabel+'</span>'+
+      '<input type="number" placeholder="'+ed.hint+'" class="inp" id="ESPV_'+eid+'" value="'+(ex.valor||'')+'" style="width:110px" oninput="calcEspTot()">'+
+      '</div>'+
+      (ed.tipo==='m2'||ed.tipo==='lote'?
+        '<div style="display:flex;align-items:center;gap:8px;padding-left:24px">'+
+        '<label style="font-size:11px;color:var(--tx2);min-width:120px">'+(ed.tipo==='m2'?'Superficie (m²):':'N° de lotes:')+'</label>'+
+        '<input type="number" placeholder="'+(ed.tipo==='m2'?'m²':'lotes')+'" class="inp" id="ESPC_'+eid+'" value="'+(ex.cantidad||'')+'" style="width:90px" oninput="calcEspTot()">'+
+        '<span style="font-size:11px;color:var(--tx2)">= <strong id="ESPR_'+eid+'">$'+(ex.valor&&ex.cantidad?Number(parseFloat(ex.valor||0)*parseFloat(ex.cantidad||0)).toLocaleString('es-CL'):'0')+'</strong></span>'+
+        '</div>'
+      :'')+
+      '</div>';
+  }).join('');
+  // build extra campos
+  var extHtml=p.extraCampos.map(function(ec){return '<div class="row fld"><label style="min-width:110px;margin-bottom:0">'+ec.label+'</label><input class="inp f1" data-lbl="'+ec.label+'" value="'+(ec.valor||'')+'"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()">×</button></div>'}).join('');
+  // client preview
+  var cl=clis.find(function(c){return c.id===p.clienteId});
+  var cliPrev=cl?buildCliPrev(cl):'';
+
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal">'+
+    '<div class="mhdr">'+
+    '<div>'+
+    '<div class="mttl">'+(isNew?'Nuevo proyecto':'Proyecto: '+p.nombre)+'</div>'+
+    ((!isNew&&p.codigo)?'<span class="cod mt1" onclick="copyCod(\''+p.codigo+'\')" title="Clic para copiar">'+p.codigo+'</span>':'')+
+    ((!isNew&&p.nubeUrl)?(' <a href="'+p.nubeUrl+'" target="_blank" class="'+(p.nubeServicio==='drive'?'cloud-a':p.nubeServicio==='dropbox'?'cloud-d':'cloud-n')+'" style="margin-left:4px">'+(p.nubeServicio==='drive'?'📁 Drive':p.nubeServicio==='dropbox'?'📦 Dropbox':'🔗 Carpeta')+'</a>'):'')+'</div>'+
+    '<button class="xbtn" onclick="closeMod()">×</button></div>'+
+    '<div class="tabs">'+
+    '<div class="tab on" onclick="swTab(this,\'TC\')">Cliente</div>'+
+    '<div class="tab" onclick="swTab(this,\'TG\')">General</div>'+
+    '<div class="tab" onclick="swTab(this,\'TP\')">Propiedad</div>'+
+    '<div class="tab" onclick="swTab(this,\'TCH\')">Checklist</div>'+
+    '<div class="tab" onclick="swTab(this,\'TH\')">Honorarios</div>'+
+    '<div class="tab" onclick="swTab(this,\'TCA\')">Características</div>'+
+    '<div class="tab" onclick="swTab(this,\'TB\')">Bitácora</div>'+
+    '</div>'+
+    // TAB CLIENTE
+    '<div id="TC">'+
+    // Mode switcher
+    '<div style="display:flex;gap:8px;margin-bottom:14px">'+
+    '<button id="CBTN_SEL" class="btn btn-p btn-sm" onclick="cliMode(\'sel\')">Seleccionar existente</button>'+
+    '<button id="CBTN_NEW" class="btn btn-sm" onclick="cliMode(\'new\')">+ Crear nuevo cliente</button>'+
+    (p.clienteId?'<button id="CBTN_EDIT" class="btn btn-sm" onclick="cliMode(\'edit\')">✏️ Editar seleccionado</button>':'')+
+    '</div>'+
+    // SELECT MODE
+    '<div id="TC_SEL">'+
+    '<div class="fld"><label>Seleccionar cliente</label><select id="PC2" onchange="syncCli(this.value)" style="width:100%"><option value="">— Seleccionar —</option>'+cliOpts+'</select></div>'+
+    '<div id="CLIPREV">'+cliPrev+'</div>'+
+    '</div>'+
+    // CREATE / EDIT MODE
+    '<div id="TC_FORM" class="hidden">'+
+    '<div style="background:var(--bgs);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--txs)" id="TC_FORMLBL">Completa los datos del nuevo cliente</div>'+
+    '<input type="hidden" id="CLI_ID" value="">'+
+    '<div class="g2">'+
+    '<div class="fld"><label>Nombre completo *</label><input id="CLI_N" placeholder="Ej: Juan Pérez González"></div>'+
+    '<div class="fld"><label>RUT</label><input id="CLI_R" placeholder="12.345.678-9"></div>'+
+    '</div>'+
+    '<div class="g2">'+
+    '<div class="fld"><label>Teléfono</label><input id="CLI_T" placeholder="+56 9 1234 5678"></div>'+
+    '<div class="fld"><label>Email</label><input type="email" id="CLI_E"></div>'+
+    '</div>'+
+    '<div class="fld"><label>Dirección</label><input id="CLI_D"></div>'+
+    '<div class="fld"><label>Rol del cliente</label>'+
+    '<select id="CLI_RL">'+
+    '<option value="cliente">Solo cliente (no es propietario del predio)</option>'+
+    '<option value="propietario">Propietario del predio</option>'+
+    '<option value="ambos">Cliente y propietario</option>'+
+    '</select></div>'+
+    '<div class="fld"><label>Observaciones</label><textarea id="CLI_O" style="min-height:56px"></textarea></div>'+
+    '<button class="btn btn-p btn-sm" onclick="saveCliInline()">💾 Guardar cliente y vincular</button>'+
+    '</div>'+
+    '</div>'+
+    // TAB GENERAL
+    '<div id="TG" class="hidden">'+
+    '<div class="g2"><div class="fld"><label>Nombre del proyecto *</label><input id="PN" value="'+(p.nombre||'')+'"></div>'+
+    '<div class="fld"><label>Cliente</label><select id="PC" onchange="syncCli2(this.value)" style="width:100%"><option value="">— Seleccionar —</option>'+cliOpts+'</select></div></div>'+
+    '<div class="g2"><div class="fld"><label>Tipo de trámite</label><select id="PTT" onchange="loadChk(this.value)" style="width:100%"><option value="">— Seleccionar —</option>'+tramOpts+'</select></div>'+
+    '<div class="fld"><label>Urgencia / Prioridad</label><select id="PU"><option value="sumaugencia"'+(p.urgencia==="sumaugencia"?' selected':'')+'>Suma urgencia</option><option value="urgente"'+(p.urgencia==="urgente"?' selected':'')+'>Urgente</option><option value="ejecutar"'+(p.urgencia==="ejecutar"?' selected':'')+'>Por ejecutar</option><option value="paralizado"'+(p.urgencia==="paralizado"?' selected':'')+'>Paralizado</option><option value="posterior"'+(p.urgencia==="posterior"?' selected':'')+'>Posterior</option></select></div></div>'+
+    '<div class="g2"><div class="fld"><label>Estado del proyecto</label><select id="PE"><option value="porEjecutar"'+(p.estado==='porEjecutar'?' selected':'')+'>Por ejecutar</option><option value="ejecucion"'+(p.estado==='ejecucion'?' selected':'')+'>En ejecución</option><option value="terminado"'+(p.estado==='terminado'?' selected':'')+'>Terminado</option></select></div>'+
+    '<div class="fld"><label>Proceso actual</label><select id="PPR"><option value="diseño"'+(p.proceso==='diseño'?' selected':'')+'>Diseño</option><option value="permiso"'+(p.proceso==='permiso'?' selected':'')+'>Permiso</option><option value="construccion"'+(p.proceso==='construccion'?' selected':'')+'>Construcción</option><option value="recepcion"'+(p.proceso==='recepcion'?' selected':'')+'>Recepción</option></select></div></div>'+
+    '<div class="fld"><label>Código del proyecto <span style="font-size:11px;color:var(--tx3)">(generado automáticamente — editable)</span></label>'+
+    '<div style="display:flex;gap:8px"><input id="PCOD" value="'+(p.codigo||'')+'" placeholder="Ej: PEON_COTTH_2025" style="font-family:monospace;font-weight:600;flex:1;padding:7px 10px;border:.5px solid var(--bd2);border-radius:var(--r);background:var(--bg);color:var(--tx);font-size:13px" oninput="this.dataset.edited=1">'+
+    '<button class="btn btn-sm" type="button" onclick="regenCod()">↺ Regenerar</button></div></div>'+
+    '<div class="fld"><label>Carpeta de archivos (Drive / Dropbox)</label>'+
+    '<div class="g2" style="margin-top:4px"><div><div class="tsm tx2 mb2">Servicio</div>'+
+    '<select id="PNSV" style="width:100%" class="inp"><option value=""'+(!(p.nubeServicio)?'selected':'')+'>— Sin asignar —</option><option value="drive"'+(p.nubeServicio==='drive'?' selected':'')+'>Google Drive</option><option value="dropbox"'+(p.nubeServicio==='dropbox'?' selected':'')+'>Dropbox</option><option value="otro"'+(p.nubeServicio==='otro'?' selected':'')+'>Otro</option></select></div>'+
+    '<div><div class="tsm tx2 mb2">Nombre sugerido para la carpeta</div><div style="font-family:monospace;font-size:12px;padding:6px 10px;background:var(--bg2);border-radius:var(--r)">'+(p.codigo||'(define el código primero)')+'</div></div></div>'+
+    '<input id="PNURL" value="'+(p.nubeUrl||'')+'" placeholder="Pega aquí el link compartido de Drive o Dropbox..." style="width:100%;margin-top:8px;padding:7px 10px;border:.5px solid var(--bd2);border-radius:var(--r);background:var(--bg);color:var(--tx);font-size:13px">'+
+    '<div class="tsm tx2 mt1">Crea la carpeta con el nombre del código, compártela y pega el link aquí.</div></div>'+
+    '<div class="g2"><div class="fld"><label>Rol de la propiedad</label><input id="PROL" value="'+(p.rol||'')+'" placeholder="Ej: 350-5"></div>'+
+    '<div class="fld"><label>Fecha de inicio</label><input type="date" id="PDATE" value="'+(p.fechaInicio||'')+'"></div></div>'+
+    '<div class="fld"><label>Observaciones generales</label><textarea id="POBS">'+(p.observaciones||'')+'</textarea></div>'+
+    '<div id="PEXT">'+extHtml+'</div>'+
+    '<button class="btn btn-sm mt2" onclick="addExt()">+ Campo personalizado</button>'+
+    '</div>'+
+    // TAB PROPIEDAD
+    '<div id="TP" class="hidden">'+
+    '<div class="g2"><div class="fld"><label>Dirección (calle y número)</label><input id="PDIR" value="'+(p.direccionProp||'')+'"></div>'+
+    '<div class="fld"><label>Rol de la propiedad</label><input id="PROLP" value="'+(p.rolProp||'')+'"></div></div>'+
+    '<div class="sec-ttl mt2">Escritura</div>'+
+    '<div class="g3"><div class="fld"><label>Fojas</label><input id="PFJ" value="'+(p.fojas||'')+'"></div>'+
+    '<div class="fld"><label>Número</label><input id="PNE" value="'+(p.numEscritura||'')+'"></div>'+
+    '<div class="fld"><label>Año</label><input id="PAE" value="'+(p.anioEscritura||'')+'"></div></div>'+
+    '<div class="fld"><label>Superficie del predio (m²)</label><input id="PSUP" value="'+(p.supPredio||'')+'"></div>'+
+    '<div class="sec-ttl mt2">Deslindes</div>'+
+    '<div class="g2"><div class="fld"><label>Norte</label><input id="PDN" value="'+(p.dNorte||'')+'"></div>'+
+    '<div class="fld"><label>Sur</label><input id="PDS" value="'+(p.dSur||'')+'"></div>'+
+    '<div class="fld"><label>Este</label><input id="PDE" value="'+(p.dEste||'')+'"></div>'+
+    '<div class="fld"><label>Oeste</label><input id="PDO" value="'+(p.dOeste||'')+'"></div></div>'+
+    '<div class="sec-ttl mt2">Coordenadas UTM</div>'+
+    '<div class="g2"><div class="fld"><label>Norte UTM</label><input id="PUTN" value="'+(p.utmNorte||'')+'"></div>'+
+    '<div class="fld"><label>Este UTM</label><input id="PUTE" value="'+(p.utmEste||'')+'"></div></div>'+
+    '<div class="fld"><label>Descripción del predio</label><textarea id="PDESP">'+(p.descPredio||'')+'</textarea></div>'+
+    '</div>'+
+    // TAB CHECKLIST
+    '<div id="TCH" class="hidden">'+
+    '<div class="tsm tx2 mb2">Marca ✓ cuando el propietario entregue cada documento. Al seleccionar un trámite en General se carga automáticamente.</div>'+
+    '<div id="CHKC">'+chkHtml+'</div>'+
+    '<div class="row mt2"><input id="NDOC" placeholder="Agregar documento..." class="inp f1"><button class="btn btn-sm" onclick="addDoc()">+ Agregar</button></div>'+
+    '</div>'+
+    // TAB HONORARIOS
+    '<div id="TH" class="hidden">'+
+    '<div style="background:var(--bgi);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--txi)">Los valores son calculados automáticamente según la forma de cobro, pero siempre editables.</div>'+
+    '<div class="sec-ttl">Arquitectura</div>'+
+    '<div class="fld"><label>Descripción del acuerdo</label><textarea id="HDESC">'+(p.descripcionAcuerdo||'')+'</textarea></div>'+
+    '<div class="g3"><div class="fld"><label>Forma de cobro</label><select id="HFC" onchange="calcHon()"><option value="total"'+(p.formaCobro==='total'?' selected':'')+'>Total acordado</option><option value="m2"'+(p.formaCobro==='m2'?' selected':'')+'>Por m² construido</option><option value="lote"'+(p.formaCobro==='lote'?' selected':'')+'>Por lote (fusión/subdivisión)</option><option value="otro"'+(p.formaCobro==='otro'?' selected':'')+'>Otro</option></select></div>'+
+    '<div class="fld"><label id="HUNITLBL">Valor unitario ($)</label><input type="number" id="HUNIT" value="'+(p.valorUnitario||0)+'" oninput="calcHon()" placeholder="Valor por m² o lote"></div>'+
+    '<div class="fld"><label id="HCANTLBL">Cantidad (m² o lotes)</label><input type="number" id="HCANT" value="'+(p.cantidadHon||0)+'" oninput="calcHon()" placeholder="m² o cantidad de lotes"></div></div>'+
+    '<div class="g3"><div class="fld"><label>Total arquitectura ($)</label><input type="number" id="HTOT" value="'+(p.totalHonorarios||0)+'" oninput="calcSaldo()"><div class="tsm tx2 mt1" id="HCALCINFO"></div></div>'+
+    '<div class="fld"><label>Adelanto / Primer pago ($)</label><input type="number" id="HADL" value="'+(p.adelanto||0)+'" oninput="calcSaldo()"></div>'+
+    '<div class="fld"><label>Saldo pendiente ($)</label><input type="number" id="HSAL" value="'+(p.saldo||0)+'"></div></div>'+
+    '<div class="fld"><label>Estado de pago</label><select id="HEP"><option value="pendiente"'+(p.estadoPago==='pendiente'?' selected':'')+'>Pendiente</option><option value="cuotas"'+(p.estadoPago==='cuotas'?' selected':'')+'>Sistema de cuotas</option><option value="pagado"'+(p.estadoPago==='pagado'?' selected':'')+'>Pagado</option></select></div>'+
+    '<div class="hr"></div>'+
+    '<div class="sec-ttl">Especialidades</div>'+
+    '<div style="font-size:12px;color:var(--tx2);margin-bottom:8px">Activa las que aplican. Ingeniería y sanitarios se pueden cobrar por m². Eléctrico y gas por unidad.</div>'+
+    espHtml+
+    '<div id="ESPEXT"></div>'+
+    '<button class="btn btn-sm mt2" onclick="addEsp()">+ Agregar especialidad</button>'+
+    '<div class="hr"></div>'+
+    '<div class="g2">'+
+    '<div class="stat"><div class="stat-lbl">Total arquitectura</div><div style="font-size:16px;font-weight:600" id="HTOTSHOW">$'+(p.totalHonorarios?Number(p.totalHonorarios).toLocaleString('es-CL'):'0')+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">Total con especialidades</div><div style="font-size:16px;font-weight:600;color:var(--txi)" id="HTOTALL">$0</div></div>'+
+    '</div>'+
+    '</div>'+
+    // TAB CARACTERÍSTICAS
+    '<div id="TCA" class="hidden">'+
+    '<div class="fld"><label>Descripción del proyecto</label><textarea id="CDESC" placeholder="Ej: Ampliación de vivienda unifamiliar de un piso, materialidad mixta...">'+(p.descProyecto||'')+'</textarea></div>'+
+    '<div class="g2"><div class="fld"><label>Superficie construida (m²)</label><input id="CM2" value="'+(p.m2||'')+'" placeholder="Ej: 120"></div>'+
+    '<div class="fld"><label>Materialidad general</label><input id="CMAT" value="'+(p.materialidad||'')+'" placeholder="Ej: Albañilería, madera, acero"></div></div>'+
+    '<div class="fld"><label>Referencias de diseño / subdivisión</label><textarea id="CREF" placeholder="Describe las referencias visuales o urbanísticas del proyecto...">'+(p.referencias||'')+'</textarea></div>'+
+    '<div class="hr"></div>'+
+    '<div class="sec-ttl">Características técnicas</div>'+
+    '<div id="CTEC">'+buildCtecHtml(p)+'</div>'+
+    '<button class="btn btn-sm mt2" onclick="addCtec()">+ Agregar característica</button>'+
+    '<div class="hr"></div>'+
+    '<div class="sec-ttl">Programa arquitectónico</div>'+
+    '<div id="PROGT">'+progHtml+'</div>'+
+    '<button class="btn btn-sm mt2" onclick="addRec()">+ Agregar recinto</button>'+
+    '</div>'+
+    // TAB BITÁCORA
+    '<div id="TB" class="hidden">'+
+    '<div id="BITL">'+bitHtml+'</div>'+
+    '<div class="hr"></div>'+
+    '<div class="fld"><label>Nueva entrada</label><textarea id="BITIN" placeholder="Describe el avance, modificación o decisión..."></textarea></div>'+
+    '<button class="btn btn-sm" onclick="addBit()">+ Agregar entrada</button>'+
+    '</div>'+
+    // FOOTER
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    (isNew?'<div></div>':'<button class="btn btn-sm btn-d" onclick="delProy(\''+p.id+'\');closeMod();go(\'proyectos\')">Eliminar proyecto</button>')+
+    '<div style="display:flex;gap:8px"><button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="saveProy(\''+p.id+'\','+isNew+')">💾 Guardar</button></div></div>'+
+    '</div></div>';
+  // init PC select
+  var pcEl=document.getElementById('PC');if(pcEl)pcEl.value=p.clienteId||'';
+  var pc2El=document.getElementById('PC2');if(pc2El)pc2El.value=p.clienteId||'';
+}
+
+function buildCliPrev(cl){
+  if(!cl)return'';
+  var rl=cl.rolCliente==='propietario'?'Propietario':cl.rolCliente==='ambos'?'Cliente/Prop.':'Solo cliente';
+  var rb=cl.rolCliente==='propietario'?'b-ejecucion':cl.rolCliente==='ambos'?'b-ejecutar':'b-posterior';
+  return '<div class="card" style="margin-bottom:0">'+
+    '<div style="display:flex;justify-content:space-between;margin-bottom:10px">'+
+    '<div style="font-size:15px;font-weight:600">'+cl.nombre+'</div><span class="badge '+rb+'">'+rl+'</span></div>'+
+    '<div class="g2" style="font-size:13px;gap:8px">'+
+    '<div><span class="tx2">RUT:</span> '+(cl.rut||'—')+'</div>'+
+    '<div><span class="tx2">Teléfono:</span> '+(cl.telefono||'—')+'</div>'+
+    '<div><span class="tx2">Email:</span> '+(cl.email||'—')+'</div>'+
+    '<div><span class="tx2">Dirección:</span> '+(cl.direccion||'—')+'</div>'+
+    '</div>'+(cl.observaciones?'<div class="tsm tx2 mt2">'+cl.observaciones+'</div>':'')+
+    '</div>';
+}
+function syncCli(cid){
+  var clis=rdb('clientes',[]);
+  var cl=clis.find(function(c){return c.id===cid});
+  var pc=document.getElementById('PC');if(pc)pc.value=cid;
+  var box=document.getElementById('CLIPREV');if(box)box.innerHTML=cl?buildCliPrev(cl):'';
+}
+function syncCli2(cid){
+  var pc2=document.getElementById('PC2');if(pc2)pc2.value=cid;
+  syncCli(cid);
+}
+function regenCod(){
+  var clis=rdb('clientes',[]);
+  var tram=(document.getElementById('PTT')||{}).value||'';
+  var cid=(document.getElementById('PC')||{}).value||(document.getElementById('PC2')||{}).value||'';
+  var cl=clis.find(function(c){return c.id===cid});
+  var cod=genCod(tram,cl?cl.nombre:'');
+  var inp=document.getElementById('PCOD');if(inp&&!inp.dataset.edited)inp.value=cod;
+  else if(inp)inp.value=cod;
+}
+function loadChk(tramNom){
+  var trams=rdb('tramites',defTrams());
+  var t=trams.find(function(x){return x.nombre===tramNom});
+  if(!t)return;
+  var c=document.getElementById('CHKC');if(!c)return;
+  c.innerHTML=t.chk.map(function(d,i){return '<div class="chk-row" id="CR'+i+'"><input type="checkbox" id="CK'+i+'" onchange="toggleCR('+i+')" style="width:16px;height:16px"><label for="CK'+i+'">'+d+'</label><button class="btn btn-sm btn-d" onclick="this.closest(\'.chk-row\').remove()">×</button></div>'}).join('');
+  regenCod();
+}
+function toggleCR(i){var r=document.getElementById('CR'+i);if(r)r.classList.toggle('done',document.getElementById('CK'+i).checked)}
+function addDoc(){var inp=document.getElementById('NDOC');if(!inp||!inp.value.trim())return;var c=document.getElementById('CHKC');var i=c.querySelectorAll('.chk-row').length;c.insertAdjacentHTML('beforeend','<div class="chk-row" id="CR'+i+'"><input type="checkbox" id="CK'+i+'" onchange="toggleCR('+i+')" style="width:16px;height:16px"><label for="CK'+i+'">'+inp.value.trim()+'</label><button class="btn btn-sm btn-d" onclick="this.closest(\'.chk-row\').remove()">×</button></div>');inp.value=''}
+function addExt(){var lbl=prompt('Nombre del campo:');if(!lbl)return;var c=document.getElementById('PEXT');c.insertAdjacentHTML('beforeend','<div class="row fld"><label style="min-width:110px;margin-bottom:0">'+lbl+'</label><input class="inp f1" data-lbl="'+lbl+'" value=""><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()">×</button></div>')}
+function addEsp(){var n=prompt('Nombre de la especialidad:');if(!n)return;var k=n.replace(/\s/g,'_');var c=document.getElementById('ESPEXT');c.insertAdjacentHTML('beforeend','<div class="row" style="padding:7px 0;border-bottom:.5px solid var(--bd)"><input type="checkbox" id="ESP_'+k+'" style="width:16px;height:16px"><label style="flex:1;font-size:13px">'+n+'</label><input type="number" placeholder="$" class="inp" id="ESPV_'+k+'" style="width:120px"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:4px">×</button></div>')}
+function addRec(){var c=document.getElementById('PROGT');var i=c.querySelectorAll('.row').length;c.insertAdjacentHTML('beforeend','<div class="row" style="padding:4px 0"><input placeholder="Recinto" class="inp f1" id="REC'+i+'"><input placeholder="m²" class="inp" id="RECM'+i+'" style="width:70px;margin-left:6px"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:4px">×</button></div>')}
+function addBit(){var inp=document.getElementById('BITIN');if(!inp||!inp.value.trim())return;var fecha=new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});var c=document.getElementById('BITL');var em=c.querySelector('.empty');if(em)em.remove();c.insertAdjacentHTML('beforeend','<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="badge b-posterior tsm">'+fecha+'</span><button class="btn btn-sm btn-d" onclick="this.closest(\'.card\').remove()">×</button></div><div style="font-size:13px">'+inp.value.trim()+'</div></div>');inp.value=''}
+
+function saveProy(id,isNew){
+  var ps=rdb('proyectos',[]);
+  var clis=rdb('clientes',[]);
+  var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var gc=function(i){return(document.getElementById(i)||{}).checked||false};
+  var cid=g('PC')||g('PC2');
+  var cl=clis.find(function(c){return c.id===cid});
+  // checklist
+  var chk=Array.from(document.querySelectorAll('#CHKC .chk-row')).map(function(row){return{texto:(row.querySelector('label')||{}).textContent||'',checked:(row.querySelector('input[type=checkbox]')||{}).checked||false}});
+  // bitacora
+  var bit=Array.from(document.querySelectorAll('#BITL .card')).map(function(card){return{fecha:(card.querySelector('.badge')||{}).textContent||'',texto:(card.querySelector('div:last-child')||{}).textContent||''}});
+  // programa
+  var prog=[];document.querySelectorAll('#PROGT .row').forEach(function(row,i){var r=row.querySelector('[id^=REC]');var m=row.querySelector('[id^=RECM]');if(r&&r.value)prog.push({recinto:r.value,m2:m?m.value:''})});
+  // extra
+  var ext=Array.from(document.querySelectorAll('#PEXT .row')).map(function(row){return{label:(row.querySelector('label')||{}).textContent||'',valor:(row.querySelector('input[data-lbl]')||{}).value||''}});
+  // especialidades
+  var ESPS_SAVE=['Ingeniería estructural','Proyecto agua potable','Proyecto alcantarillado','Proyecto eléctrico','Proyecto de gas','Topografía','Fusión de predios','Subdivisión de predios'];
+  var espArr=ESPS_SAVE.map(function(e){var k=e.replace(/[\s]/g,'_');return{nombre:e,activo:gc('ESP_'+k),valor:g('ESPV_'+k),cantidad:g('ESPC_'+k)}});
+  document.querySelectorAll('#ESPEXT .row').forEach(function(row){var lbl=(row.querySelector('label')||{}).textContent||'';var k=lbl.replace(/[\s]/g,'_');espArr.push({nombre:lbl,activo:gc('ESP_'+k),valor:g('ESPV_'+k),cantidad:''});});
+  var ctec=Array.from(document.querySelectorAll('#CTEC .ctec-row')).map(function(row){return{label:(row.querySelector('.ctec-lbl')||{}).textContent||'',valor:(row.querySelector('input')||{}).value||''}});
+  var upd={id:id,nombre:g('PN'),clienteId:cid,cliente:cl?cl.nombre:'',tipoTramite:g('PTT'),urgencia:g('PU')||'posterior',estado:g('PE')||'porEjecutar',proceso:g('PPR')||'diseño',rol:g('PROL'),fechaInicio:g('PDATE'),observaciones:g('POBS'),codigo:g('PCOD'),nubeServicio:g('PNSV'),nubeUrl:g('PNURL'),descripcionAcuerdo:g('HDESC'),formaCobro:g('HFC'),totalHonorarios:parseFloat(g('HTOT')||0),valorUnitario:parseFloat(g('HUNIT')||0),cantidadHon:parseFloat(g('HCANT')||0),adelanto:parseFloat(g('HADL')||0),saldo:parseFloat(g('HSAL')||0),estadoPago:g('HEP')||'pendiente',direccionProp:g('PDIR'),rolProp:g('PROLP'),fojas:g('PFJ'),numEscritura:g('PNE'),anioEscritura:g('PAE'),supPredio:g('PSUP'),dNorte:g('PDN'),dSur:g('PDS'),dEste:g('PDE'),dOeste:g('PDO'),utmNorte:g('PUTN'),utmEste:g('PUTE'),descPredio:g('PDESP'),descProyecto:g('CDESC'),m2:g('CM2'),materialidad:g('CMAT'),referencias:g('CREF'),checklist:chk,bitacora:bit,programa:prog,extraCampos:ext,especialidades:espArr,ctec:ctec};
+  if(isNew)ps.push(upd);else{var idx=ps.findIndex(function(x){return x.id===id});if(idx>=0)ps[idx]=upd;else ps.push(upd)}
+  wdb('proyectos',ps);closeMod();go('proyectos');
+}
+
+// ══════════════════════════════════════
+// BUSCADOR
+// ══════════════════════════════════════
+function vBusc(){
+  var trams=rdb('tramites',defTrams());
+  var tramOpts=trams.map(function(t){return'<option>'+t.nombre+'</option>'}).join('');
+  document.getElementById('MAIN').innerHTML=
+    '<div class="card mb2">'+
+    '<div class="sec-ttl">Filtros de búsqueda</div>'+
+    '<div class="g3">'+
+    '<div class="fld"><label>Nombre del proyecto</label><input id="SN" class="inp" placeholder="Buscar..." oninput="doSearch()"></div>'+
+    '<div class="fld"><label>Código</label><input id="SC" class="inp" placeholder="PEON_..." style="font-family:monospace" oninput="doSearch()"></div>'+
+    '<div class="fld"><label>Cliente (nombre o RUT)</label><input id="SCL" class="inp" placeholder="Nombre o RUT..." oninput="doSearch()"></div>'+
+    '<div class="fld"><label>Tipo de trámite</label><select id="ST" class="inp" onchange="doSearch()"><option value="">Todos</option>'+tramOpts+'</select></div>'+
+    '<div class="fld"><label>Estado</label><select id="SE" class="inp" onchange="doSearch()"><option value="">Todos</option><option value="porEjecutar">Por ejecutar</option><option value="ejecucion">En ejecución</option><option value="terminado">Terminado</option></select></div>'+
+    '<div class="fld"><label>Estado de pago</label><select id="SP" class="inp" onchange="doSearch()"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="cuotas">En cuotas</option><option value="pagado">Pagado</option></select></div>'+
+    '<div class="fld"><label>Prioridad</label><select id="SU" class="inp" onchange="doSearch()"><option value="">Todas</option><option value="sumaugencia">Suma urgencia</option><option value="urgente">Urgente</option><option value="ejecutar">Por ejecutar</option><option value="paralizado">Paralizado</option><option value="posterior">Posterior</option></select></div>'+
+    '</div></div>'+
+    '<div class="card"><div id="SRES"></div></div>';
+  doSearch();
+}
+function doSearch(){
+  var ps=rdb('proyectos',[]);var clis=rdb('clientes',[]);
+  var sn=(document.getElementById('SN')||{}).value||'';sn=sn.toLowerCase();
+  var sc=(document.getElementById('SC')||{}).value||'';sc=sc.toLowerCase();
+  var scl=(document.getElementById('SCL')||{}).value||'';scl=scl.toLowerCase();
+  var st=(document.getElementById('ST')||{}).value||'';
+  var se=(document.getElementById('SE')||{}).value||'';
+  var sp=(document.getElementById('SP')||{}).value||'';
+  var su=(document.getElementById('SU')||{}).value||'';
+  var res=ps.filter(function(p){
+    var cl=clis.find(function(c){return c.id===p.clienteId})||{};
+    var clstr=((cl.nombre||p.cliente||'')+' '+(cl.rut||'')).toLowerCase();
+    return(!sn||( p.nombre||'').toLowerCase().indexOf(sn)>=0)&&
+      (!sc||(p.codigo||'').toLowerCase().indexOf(sc)>=0)&&
+      (!scl||clstr.indexOf(scl)>=0)&&
+      (!st||p.tipoTramite===st)&&
+      (!se||p.estado===se)&&
+      (!sp||p.estadoPago===sp)&&(!su||p.urgencia===su);
+  });
+  var rows=res.length===0?'<div class="empty">Sin resultados</div>':
+    '<div class="tsm tx2 mb2">'+res.length+' resultado'+(res.length!==1?'s':'')+' encontrado'+(res.length!==1?'s':'')+'</div>'+
+    '<div class="twrap"><table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Trámite</th><th>Prioridad</th><th>Estado</th><th>Pago</th><th>Honorarios</th><th>Carpeta</th><th></th></tr></thead><tbody>'+
+    res.map(function(p){return'<tr><td class="cod">'+(p.codigo||'—')+'</td><td style="font-weight:600">'+(p.nombre||'—')+'</td><td>'+(p.cliente||'—')+'</td><td>'+(p.tipoTramite||'—')+'</td><td><span class="badge b-'+(p.urgencia||'posterior')+'">'+stUrg(p.urgencia)+'</span></td><td><span class="badge b-'+(p.estado||'porEjecutar')+'">'+stEst(p.estado)+'</span></td><td><span class="badge b-'+(p.estadoPago||'pendiente')+'">'+stPago(p.estadoPago)+'</span></td><td>$'+fmt(p.totalHonorarios)+'</td><td>'+cloudBadge(p)+'</td><td><button class="btn btn-sm" onclick="editProy(\''+p.id+'\')">Ver</button></td></tr>'}).join('')+
+    '</tbody></table></div>';
+  document.getElementById('SRES').innerHTML=rows;
+}
+
+// ══════════════════════════════════════
+// CLIENTES
+// ══════════════════════════════════════
+function vClis(){
+  var cs=rdb('clientes',[]);
+  document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="editCli(null)">+ Nuevo cliente</button>';
+  var rows=cs.length===0?'<tr><td colspan="6"><div class="empty">Sin clientes</div></td></tr>':
+    cs.map(function(c){var rl=c.rolCliente==='propietario'?'Propietario':c.rolCliente==='ambos'?'Cliente/Prop.':'Solo cliente';var rb=c.rolCliente==='propietario'?'b-ejecucion':c.rolCliente==='ambos'?'b-ejecutar':'b-posterior';return'<tr><td style="font-weight:600">'+(c.nombre||'—')+'</td><td>'+(c.rut||'—')+'</td><td>'+(c.telefono||'—')+'</td><td>'+(c.email||'—')+'</td><td><span class="badge '+rb+'">'+rl+'</span></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editCli(\''+c.id+'\')">Editar</button> <button class="btn btn-sm btn-d" onclick="delCli(\''+c.id+'\')">Eliminar</button></td></tr>'}).join('');
+  document.getElementById('MAIN').innerHTML='<div class="card"><div class="twrap"><table><thead><tr><th>Nombre</th><th>RUT</th><th>Teléfono</th><th>Email</th><th>Rol</th><th>Acciones</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function delCli(id){if(!confirm('¿Eliminar?'))return;wdb('clientes',rdb('clientes',[]).filter(function(c){return c.id!==id}));vClis()}
+function editCli(id){
+  var cs=rdb('clientes',[]);
+  var c=id?cs.find(function(x){return x.id===id}):null;
+  if(!c)c={id:uid(),nombre:'',rut:'',telefono:'',email:'',direccion:'',rolCliente:'cliente',observaciones:'',extraCampos:[]};
+  var isNew=!id;
+  var extH=c.extraCampos.map(function(ec){return'<div class="row fld"><label style="min-width:110px;margin-bottom:0">'+ec.label+'</label><input class="inp f1" data-lbl="'+ec.label+'" value="'+(ec.valor||'')+'"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()">×</button></div>'}).join('');
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()"><div class="modal" style="max-width:560px">'+
+    '<div class="mhdr"><div class="mttl">'+(isNew?'Nuevo cliente':'Editar: '+c.nombre)+'</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
+    '<div class="g2"><div class="fld"><label>Nombre completo *</label><input id="CLN" value="'+(c.nombre||'')+'"></div>'+
+    '<div class="fld"><label>RUT</label><input id="CLR" value="'+(c.rut||'')+'" placeholder="12.345.678-9"></div>'+
+    '<div class="fld"><label>Teléfono</label><input id="CLT" value="'+(c.telefono||'')+'" placeholder="+56 9..."></div>'+
+    '<div class="fld"><label>Email</label><input type="email" id="CLE" value="'+(c.email||'')+'"></div></div>'+
+    '<div class="fld"><label>Dirección</label><input id="CLD" value="'+(c.direccion||'')+'"></div>'+
+    '<div class="fld"><label>Rol del cliente</label><select id="CLRL"><option value="cliente"'+(c.rolCliente==='cliente'?' selected':'')+'>Solo cliente (no es propietario del predio)</option><option value="propietario"'+(c.rolCliente==='propietario'?' selected':'')+'>Propietario del predio</option><option value="ambos"'+(c.rolCliente==='ambos'?' selected':'')+'>Cliente y propietario</option></select></div>'+
+    '<div class="fld"><label>Observaciones</label><textarea id="CLO">'+(c.observaciones||'')+'</textarea></div>'+
+    '<div id="CLEXT">'+extH+'</div>'+
+    '<button class="btn btn-sm mb2" onclick="addExtCli()">+ Campo personalizado</button>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeMod()">Cancelar</button><button class="btn btn-p" onclick="saveCli(\''+c.id+'\','+isNew+')">Guardar</button></div>'+
+    '</div></div>';
+}
+function addExtCli(){var lbl=prompt('Nombre del campo:');if(!lbl)return;var c=document.getElementById('CLEXT');c.insertAdjacentHTML('beforeend','<div class="row fld"><label style="min-width:110px;margin-bottom:0">'+lbl+'</label><input class="inp f1" data-lbl="'+lbl+'" value=""><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()">×</button></div>')}
+function saveCli(id,isNew){
+  var cs=rdb('clientes',[]);var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var ext=Array.from(document.querySelectorAll('#CLEXT .row')).map(function(r){return{label:(r.querySelector('label')||{}).textContent||'',valor:(r.querySelector('input[data-lbl]')||{}).value||''}});
+  var upd={id:id,nombre:g('CLN'),rut:g('CLR'),telefono:g('CLT'),email:g('CLE'),direccion:g('CLD'),rolCliente:g('CLRL')||'cliente',observaciones:g('CLO'),extraCampos:ext};
+  if(isNew)cs.push(upd);else{var i=cs.findIndex(function(x){return x.id===id});if(i>=0)cs[i]=upd}
+  wdb('clientes',cs);closeMod();vClis();
+}
+
+// ══════════════════════════════════════
+// TRÁMITES
+// ══════════════════════════════════════
+function vTrams(){
+  var ts=rdb('tramites',defTrams());
+  document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="editTram(null)">+ Nuevo trámite</button>';
+  var cards=ts.map(function(t){
+    var short=t.chk.slice(0,5).map(function(d){return'<div class="tsm tx2" style="padding:2px 0">· '+d+'</div>'}).join('');
+    var full=t.chk.map(function(d){return'<div class="tsm tx2" style="padding:2px 0">· '+d+'</div>'}).join('');
+    var more=t.chk.length>5?'<div class="tsm" style="color:var(--txi);cursor:pointer;margin-top:4px" onclick="expTram(\''+t.id+'\')">▸ Ver todos ('+( t.chk.length-5)+' más)</div>':'';
+    var less='<div class="tsm" style="color:var(--txi);cursor:pointer;margin-top:4px" onclick="expTram(\''+t.id+'\')">▴ Ver menos</div>';
+    return'<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div style="font-weight:600;font-size:13px;flex:1;padding-right:8px">'+t.nombre+'</div><div style="display:flex;gap:6px;flex-shrink:0"><button class="btn btn-sm" onclick="editTram(\''+t.id+'\')">Editar</button><button class="btn btn-sm btn-d" onclick="delTram(\''+t.id+'\')">×</button></div></div>'+
+    '<div class="tsm tx2 mb2">'+(t.desc||'')+'</div>'+
+    '<div class="tsm" style="font-weight:600;margin-bottom:6px">Checklist: '+t.chk.length+' documentos</div>'+
+    '<div id="TS_'+t.id+'">'+short+more+'</div>'+
+    '<div id="TF_'+t.id+'" style="display:none">'+full+less+'</div>'+
+    '</div>';
+  }).join('');
+  document.getElementById('MAIN').innerHTML='<div class="g2">'+cards+'</div>';
+}
+function expTram(id){
+  var s=document.getElementById('TS_'+id),f=document.getElementById('TF_'+id);
+  if(!s||!f)return;
+  if(s.style.display==='none'){s.style.display='';f.style.display='none'}else{s.style.display='none';f.style.display='block'}
+}
+function delTram(id){if(!confirm('¿Eliminar este trámite?'))return;wdb('tramites',rdb('tramites',defTrams()).filter(function(t){return t.id!==id}));vTrams()}
+function editTram(id){
+  var ts=rdb('tramites',defTrams());
+  var t=id?ts.find(function(x){return x.id===id}):null;
+  if(!t)t={id:uid(),nombre:'',desc:'',chk:[]};
+  var isNew=!id;
+  var chkH=t.chk.map(function(d,i){return'<div class="row" style="padding:5px 0"><input class="inp f1" id="TD'+i+'" value="'+d+'"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:6px">×</button></div>'}).join('');
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()"><div class="modal" style="max-width:560px">'+
+    '<div class="mhdr"><div class="mttl">'+(isNew?'Nuevo trámite':'Editar: '+t.nombre)+'</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
+    '<div class="fld"><label>Nombre del trámite *</label><input id="TN" value="'+(t.nombre||'')+'"></div>'+
+    '<div class="fld"><label>Descripción</label><textarea id="TDES">'+(t.desc||'')+'</textarea></div>'+
+    '<div class="sec-ttl">Documentos del checklist</div>'+
+    '<div id="TCHK">'+chkH+'</div>'+
+    '<button class="btn btn-sm mt2 mb2" onclick="addDocTram()">+ Agregar documento</button>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeMod()">Cancelar</button><button class="btn btn-p" onclick="saveTram(\''+t.id+'\','+isNew+')">Guardar</button></div>'+
+    '</div></div>';
+}
+function addDocTram(){var c=document.getElementById('TCHK');var i=c.querySelectorAll('.row').length;c.insertAdjacentHTML('beforeend','<div class="row" style="padding:5px 0"><input class="inp f1" id="TD'+i+'" placeholder="Nombre del documento..."><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:6px">×</button></div>')}
+function saveTram(id,isNew){
+  var ts=rdb('tramites',defTrams());
+  var chk=Array.from(document.querySelectorAll('#TCHK input')).map(function(i){return i.value.trim()}).filter(Boolean);
+  var upd={id:id,nombre:(document.getElementById('TN')||{}).value||'',desc:(document.getElementById('TDES')||{}).value||'',chk:chk};
+  if(isNew)ts.push(upd);else{var i=ts.findIndex(function(x){return x.id===id});if(i>=0)ts[i]=upd}
+  wdb('tramites',ts);closeMod();vTrams();
+}
+
+
+// ── Honorarios calculator ──
+function calcHon(){
+  var fc=(document.getElementById('HFC')||{}).value||'total';
+  var unit=parseFloat((document.getElementById('HUNIT')||{}).value||0);
+  var cant=parseFloat((document.getElementById('HCANT')||{}).value||0);
+  var lbl1=document.getElementById('HUNITLBL');
+  var lbl2=document.getElementById('HCANTLBL');
+  if(fc==='m2'){if(lbl1)lbl1.textContent='Valor por m² ($)';if(lbl2)lbl2.textContent='Superficie (m²)'}
+  else if(fc==='lote'){if(lbl1)lbl1.textContent='Valor por lote ($)';if(lbl2)lbl2.textContent='Cantidad de lotes'}
+  else{if(lbl1)lbl1.textContent='Valor unitario ($)';if(lbl2)lbl2.textContent='Cantidad'}
+  if(unit>0&&cant>0&&fc!=='total'){
+    var tot=unit*cant;
+    var inp=document.getElementById('HTOT');if(inp)inp.value=tot;
+    var info=document.getElementById('HCALCINFO');if(info)info.textContent='$'+Number(unit).toLocaleString('es-CL')+' × '+cant+' = $'+Number(tot).toLocaleString('es-CL');
+    var show=document.getElementById('HTOTSHOW');if(show)show.textContent='$'+Number(tot).toLocaleString('es-CL');
+  }
+  calcSaldo();calcEspTot();
+}
+function calcSaldo(){
+  var tot=parseFloat((document.getElementById('HTOT')||{}).value||0);
+  var adl=parseFloat((document.getElementById('HADL')||{}).value||0);
+  var sal=document.getElementById('HSAL');if(sal)sal.value=Math.max(0,tot-adl);
+  var show=document.getElementById('HTOTSHOW');if(show)show.textContent='$'+Number(tot).toLocaleString('es-CL');
+  calcEspTot();
+}
+function calcEspTot(){
+  var tot=parseFloat((document.getElementById('HTOT')||{}).value||0);
+  var ESPS_KEYS=[
+    {k:'Ingeniería_estructural',hasQty:true},
+    {k:'Proyecto_agua_potable',hasQty:false},
+    {k:'Proyecto_alcantarillado',hasQty:false},
+    {k:'Proyecto_eléctrico',hasQty:false},
+    {k:'Proyecto_de_gas',hasQty:false},
+    {k:'Topografía',hasQty:false},
+    {k:'Fusión_de_predios',hasQty:true},
+    {k:'Subdivisión_de_predios',hasQty:true},
+  ];
+  var espSum=0;
+  ESPS_KEYS.forEach(function(ed){
+    var cb=document.getElementById('ESP_'+ed.k);
+    var vInp=document.getElementById('ESPV_'+ed.k);
+    var cInp=document.getElementById('ESPC_'+ed.k);
+    var rEl=document.getElementById('ESPR_'+ed.k);
+    if(!cb||!vInp)return;
+    var val=parseFloat(vInp.value||0);
+    var qty=cInp?parseFloat(cInp.value||0):1;
+    var subtotal=ed.hasQty?(val*qty):val;
+    if(rEl)rEl.textContent='$'+Number(subtotal).toLocaleString('es-CL');
+    if(cb.checked)espSum+=subtotal;
+  });
+  // also sum custom added specialidades
+  document.querySelectorAll('#ESPEXT .row input[type=number]').forEach(function(inp){
+    var cb=inp.parentElement.querySelector('input[type=checkbox]');
+    if(cb&&cb.checked)espSum+=parseFloat(inp.value||0);
+  });
+  var all=document.getElementById('HTOTALL');
+  if(all)all.textContent='$'+Number(tot+espSum).toLocaleString('es-CL');
+}
+
+// ── Características técnicas ──
+var CTEC_DB_KEY='ctecDB';
+function getCtecDB(){return rdb(CTEC_DB_KEY,[{lbl:'Fundaciones',ph:'Ej: Hormigón armado sobre suelo firme'},{lbl:'Estructura de muros',ph:'Ej: Albañilería confinada / Marco de madera'},{lbl:'Estructura de techumbre',ph:'Ej: Cerchas de madera pino'},{lbl:'Cubierta',ph:'Ej: Zinc ondulado / Teja'},{lbl:'Revestimientos interiores',ph:'Ej: Yeso'},{lbl:'Revestimientos exteriores',ph:'Ej: Estuco pintado'},{lbl:'Cielos',ph:'Ej: Cielo americano / Yeso'},{lbl:'Pavimentos',ph:'Ej: Cerámico / Madera flotante'},{lbl:'Ventanas',ph:'Ej: PVC doble vidriado'},{lbl:'Puertas',ph:'Ej: Madera / PVC'}])}
+function buildCtecHtml(p){
+  var db=getCtecDB();
+  var saved=p.ctec||[];
+  return db.map(function(item){
+    var sv=saved.find(function(s){return s.label===item.lbl})||{};
+    return '<div class="ctec-row" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:.5px solid var(--bd)">'+
+      '<span class="ctec-lbl" style="min-width:160px;font-size:12px;color:var(--tx2)">'+item.lbl+'</span>'+
+      '<input class="inp f1" placeholder="'+item.ph+'" value="'+(sv.valor||'')+'">'+
+      '<button class="btn btn-sm btn-d" onclick="delCtec(this)" title="Eliminar">×</button></div>';
+  }).join('');
+}
+function addCtec(){
+  var lbl=prompt('Nombre de la característica (ej: Canaletas):');if(!lbl)return;
+  var ph=prompt('Texto de ayuda (ej: Zinc galvanizado):','');
+  var db=getCtecDB();
+  db.push({lbl:lbl,ph:ph||''});
+  wdb(CTEC_DB_KEY,db);
+  var c=document.getElementById('CTEC');if(!c)return;
+  c.insertAdjacentHTML('beforeend','<div class="ctec-row" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:.5px solid var(--bd)">'+
+    '<span class="ctec-lbl" style="min-width:160px;font-size:12px;color:var(--tx2)">'+lbl+'</span>'+
+    '<input class="inp f1" placeholder="'+(ph||'')+'">'+
+    '<button class="btn btn-sm btn-d" onclick="delCtec(this)" title="Eliminar">×</button></div>');
+}
+function delCtec(btn){
+  var row=btn.closest('.ctec-row');if(!row)return;
+  var lbl=(row.querySelector('.ctec-lbl')||{}).textContent||'';
+  var db=getCtecDB().filter(function(d){return d.lbl!==lbl});
+  wdb(CTEC_DB_KEY,db);
+  row.remove();
+}
+
+// ══════════════════════════════════════
+// INFORMES / PDF
+// ══════════════════════════════════════
+function vInformes(){
+  var tipos=[{id:'proyecto',lbl:'Ficha completa de proyecto',desc:'Selecciona un proyecto y elige qué secciones incluir'},
+    {id:'urgentes',lbl:'Proyectos urgentes',desc:'Listado filtrado por suma urgencia o por ejecutar'},
+    {id:'estado',lbl:'Estado de proyectos',desc:'Radiografía: en ejecución, por ejecutar, terminados'},
+    {id:'financiero',lbl:'Estado financiero',desc:'Honorarios, saldos pendientes y pagados'},
+    {id:'checklist',lbl:'Checklist para cliente',desc:'Lista de documentos a entregar — tú eliges cuáles imprimir'}];
+  var cards=tipos.map(function(t){return'<div id="TI_'+t.id+'" onclick="selInforme(\''+t.id+'\')" style="padding:12px;border-radius:var(--r);border:.5px solid var(--bd);cursor:pointer;transition:all .15s"><div style="font-weight:600;font-size:13px;margin-bottom:2px">'+t.lbl+'</div><div class="tsm tx2">'+t.desc+'</div></div>'}).join('');
+  document.getElementById('MAIN').innerHTML='<div class="g2"><div class="card"><div class="sec-ttl">Tipo de informe</div><div style="display:flex;flex-direction:column;gap:8px">'+cards+'</div></div><div id="IOPT"><div class="card"><div class="empty">Selecciona un tipo de informe</div></div></div></div>';
+}
+function selInforme(tipo){
+  document.querySelectorAll('[id^=TI_]').forEach(function(el){el.style.background='';el.style.borderColor='var(--bd)'});
+  var el=document.getElementById('TI_'+tipo);
+  if(el){el.style.background='var(--bgi)';el.style.borderColor='var(--bdi)'}
+  var ps=rdb('proyectos',[]);
+  var opts=ps.map(function(p){return'<option value="'+p.id+'">['+( p.codigo||'—')+'] '+p.nombre+' · '+p.cliente+'</option>'}).join('');
+  var html='';
+  if(tipo==='proyecto'){
+    var secs=[['IS_gen','Datos generales'],['IS_cli','Datos del cliente'],['IS_prop','Datos de la propiedad'],['IS_hon','Honorarios y pago'],['IS_chk','Checklist de documentos'],['IS_car','Características del proyecto'],['IS_bit','Bitácora de avances'],['IS_esp','Especialidades']];
+    html='<div class="card"><div class="sec-ttl">Informe de proyecto</div>'+
+      '<div class="fld"><label>Seleccionar proyecto</label><select id="IP" class="inp"><option value="">— Seleccionar —</option>'+opts+'</select></div>'+
+      '<div class="sec-ttl mt2">Secciones a incluir</div>'+
+      secs.map(function(s){return'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:.5px solid var(--bd)"><input type="checkbox" id="'+s[0]+'" checked style="width:16px;height:16px"><label for="'+s[0]+'" style="font-size:13px;cursor:pointer">'+s[1]+'</label></div>'}).join('')+
+      '<button class="btn btn-p mt3" style="width:100%" onclick="pdfProy()">📄 Generar PDF</button></div>';
+  }else if(tipo==='checklist'){
+    html='<div class="card"><div class="sec-ttl">Checklist para cliente</div>'+
+      '<div class="fld"><label>Seleccionar proyecto</label><select id="IPC" class="inp" onchange="loadChkInf(this.value)"><option value="">— Seleccionar —</option>'+opts+'</select></div>'+
+      '<div id="ICHK"></div>'+
+      '<button class="btn btn-p mt3" style="width:100%;display:none" id="BCHK" onclick="pdfChk()">📄 Imprimir checklist</button></div>';
+  }else if(tipo==='urgentes'){
+    var cu=ps.filter(function(p){return p.urgencia==='urgente'}).length;
+    var ce=ps.filter(function(p){return p.urgencia==='ejecutar'}).length;
+    html='<div class="card"><div class="sec-ttl">Proyectos urgentes</div>'+
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IU_u" checked style="width:16px;height:16px"> Suma urgencia ('+cu+')</label>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IU_e" checked style="width:16px;height:16px"> Por ejecutar ('+ce+')</label></div>'+
+      '<button class="btn btn-p" style="width:100%" onclick="pdfUrg()">📄 Generar PDF</button></div>';
+  }else if(tipo==='estado'){
+    var cEj=ps.filter(function(p){return p.estado==='ejecucion'}).length;
+    var cPE=ps.filter(function(p){return p.estado==='porEjecutar'||!p.estado}).length;
+    var cTe=ps.filter(function(p){return p.estado==='terminado'}).length;
+    html='<div class="card"><div class="sec-ttl">Estado de proyectos</div>'+
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IE_ej" checked style="width:16px;height:16px"> En ejecución ('+cEj+')</label>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IE_pe" checked style="width:16px;height:16px"> Por ejecutar ('+cPE+')</label>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IE_te" checked style="width:16px;height:16px"> Terminados ('+cTe+')</label></div>'+
+      '<button class="btn btn-p" style="width:100%" onclick="pdfEst()">📄 Generar PDF</button></div>';
+  }else if(tipo==='financiero'){
+    var tot=ps.reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+    var pen=ps.filter(function(p){return p.estadoPago==='pendiente'}).reduce(function(a,p){return a+parseFloat(p.saldo||p.totalHonorarios||0)},0);
+    var cob=ps.filter(function(p){return p.estadoPago==='pagado'}).reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+    html='<div class="card"><div class="sec-ttl">Informe financiero</div>'+
+      '<div class="g3 mb3"><div class="stat"><div class="stat-lbl">Total</div><div class="stat-val">$'+fmt(tot)+'</div></div>'+
+      '<div class="stat"><div class="stat-lbl">Pendiente</div><div class="stat-val" style="color:var(--txd)">$'+fmt(pen)+'</div></div>'+
+      '<div class="stat"><div class="stat-lbl">Cobrado</div><div class="stat-val" style="color:var(--txs)">$'+fmt(cob)+'</div></div></div>'+
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IF_p" checked style="width:16px;height:16px"> Pendientes</label>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IF_c" checked style="width:16px;height:16px"> En cuotas</label>'+
+      '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="IF_pa" checked style="width:16px;height:16px"> Pagados</label></div>'+
+      '<button class="btn btn-p" style="width:100%" onclick="pdfFin()">📄 Generar PDF</button></div>';
+  }
+  document.getElementById('IOPT').innerHTML=html;
+}
+function loadChkInf(pid){
+  var ps=rdb('proyectos',[]);var p=ps.find(function(x){return x.id===pid});
+  var c=document.getElementById('ICHK');var b=document.getElementById('BCHK');
+  if(!p||!p.checklist||!p.checklist.length){if(c)c.innerHTML='<div class="tsm tx2 mt2">Sin documentos en checklist.</div>';if(b)b.style.display='none';return}
+  if(b)b.style.display='block';
+  if(c)c.innerHTML='<div style="display:flex;gap:8px;margin:10px 0"><button class="btn btn-sm" onclick="allChkInf(true)">Seleccionar todos</button><button class="btn btn-sm" onclick="allChkInf(false)">Deseleccionar todos</button></div>'+
+    p.checklist.map(function(item,i){return'<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:.5px solid var(--bd)"><input type="checkbox" id="IC'+i+'"'+(item.checked?'':' checked')+' style="width:16px;height:16px"><label for="IC'+i+'" style="flex:1;font-size:13px;cursor:pointer">'+item.texto+'</label><span class="badge '+(item.checked?'b-terminado':'b-pendiente')+'">'+(item.checked?'Entregado':'Pendiente')+'</span></div>'}).join('');
+}
+function allChkInf(v){document.querySelectorAll('[id^=IC]').forEach(function(cb){cb.checked=v})}
+
+// ── PDF helpers ──
+function pdfCSS(){return'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:32px;color:#222;font-size:13px;max-width:850px;margin:auto}.cab{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}.cbl{display:flex;flex-direction:column;gap:3px}.li{max-height:50px;max-width:160px;object-fit:contain;margin-bottom:6px}.en{font-size:16px;font-weight:bold}.cbr{text-align:right}.ti{font-size:18px;font-weight:bold;margin-bottom:6px}.su{font-size:12px;color:#555;margin:1px 0}.sp{border:none;border-top:2px solid #222;margin:16px 0}.sh{font-size:14px;font-weight:bold;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd}table{width:100%;border-collapse:collapse;margin:10px 0}th{background:#f0f0f0;padding:7px 10px;text-align:left;font-size:11px;border-bottom:2px solid #ddd;text-transform:uppercase}td{padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;vertical-align:top}.bg{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold}.bu{background:#fcebeb;color:#a32d2d}.be{background:#faeeda;color:#854f0b}.bt{background:#eaf3de;color:#3b6d11}.bej{background:#e6f1fb;color:#185fa5}.bp{background:#fcebeb;color:#a32d2d}.bpa{background:#eaf3de;color:#3b6d11}.bc{background:#faeeda;color:#854f0b}.bpo{background:#f5f5f0;color:#5f5e5a}.ci{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #eee}.cb{width:14px;height:14px;border:1.5px solid #888;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px}.cbd{background:#3b6d11;border-color:#3b6d11;color:white}.cm{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:13px}.cl{color:#555;min-width:140px;font-size:12px}.fa{margin-top:60px;display:flex;justify-content:flex-end}.fl{border-top:1px solid #333;min-width:220px;padding-top:6px;font-size:12px;text-align:center}.co{font-family:monospace;font-size:11px;background:#f5f5f0;padding:2px 6px;border-radius:4px}@media print{body{padding:16px}}</style>'}
+function pdfCab(cfg,titulo,proy,cli){var logo=localStorage.getItem('arq_logo')||'';var fecha=new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});return'<div class="cab"><div class="cbl">'+(logo?'<img src="'+logo+'" class="li">':'')+'<div class="en">'+(cfg.empresa||'Estudio de Arquitectura')+'</div>'+(cfg.arquitecto?'<div class="su">'+cfg.arquitecto+'</div>':'')+(cfg.email?'<div class="su">'+cfg.email+'</div>':'')+(cfg.telefono?'<div class="su">Tel: '+cfg.telefono+'</div>':'')+'</div><div class="cbr"><div class="ti">'+titulo+'</div><div class="su">Fecha: '+fecha+'</div>'+(proy?'<div class="su">Proyecto: <strong>'+proy+'</strong></div>':'')+(cli?'<div class="su">Cliente: <strong>'+cli+'</strong></div>':'')+'</div></div><hr class="sp">'}
+function pdfPie(cfg){return'<div class="fa"><div class="fl">'+(cfg.arquitecto||'Arquitecto')+'<br><span style="color:#888;font-size:11px">'+(cfg.email||'')+'</span></div></div>'}
+function abrirPDF(body){var w=window.open('','_blank');w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8">'+pdfCSS()+'</head><body>'+body+'<scr'+'ipt>window.onload=function(){window.print()}<'+'/scr'+'ipt></body></html>');w.document.close()}
+
+function pdfProy(){
+  var pid=(document.getElementById('IP')||{}).value;if(!pid)return alert('Selecciona un proyecto');
+  var ps=rdb('proyectos',[]);var clis=rdb('clientes',[]);
+  var p=ps.find(function(x){return x.id===pid});if(!p)return;
+  var cl=clis.find(function(x){return x.id===p.clienteId})||{};
+  var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
+  var g=function(i){return((document.getElementById(i)||{}).checked)};
+  var body=pdfCab(cfg,'Ficha de Proyecto',p.nombre,p.cliente);
+  if(g('IS_gen'))body+='<div class="sh">Datos generales</div><div class="cm"><span class="cl">Código:</span><span class="co">'+(p.codigo||'—')+'</span></div><div class="cm"><span class="cl">Nombre:</span>'+(p.nombre||'—')+'</div><div class="cm"><span class="cl">Trámite:</span>'+(p.tipoTramite||'—')+'</div><div class="cm"><span class="cl">Prioridad:</span><span class="bg b'+(p.urgencia||'po').slice(0,2)+'">'+stUrg(p.urgencia)+'</span></div><div class="cm"><span class="cl">Estado:</span><span class="bg b'+(p.estado==='ejecucion'?'ej':p.estado==='terminado'?'t':'po')+'">'+stEst(p.estado)+'</span></div><div class="cm"><span class="cl">Proceso:</span>'+(p.proceso||'—')+'</div><div class="cm"><span class="cl">Rol propiedad:</span>'+(p.rol||p.rolProp||'—')+'</div><div class="cm"><span class="cl">Fecha inicio:</span>'+(p.fechaInicio||'—')+'</div>'+(p.observaciones?'<div class="cm"><span class="cl">Observaciones:</span>'+p.observaciones+'</div>':'');
+  if(g('IS_cli')&&cl.nombre)body+='<div class="sh">Datos del cliente</div><div class="cm"><span class="cl">Nombre:</span>'+(cl.nombre||'—')+'</div><div class="cm"><span class="cl">RUT:</span>'+(cl.rut||'—')+'</div><div class="cm"><span class="cl">Teléfono:</span>'+(cl.telefono||'—')+'</div><div class="cm"><span class="cl">Email:</span>'+(cl.email||'—')+'</div><div class="cm"><span class="cl">Dirección:</span>'+(cl.direccion||'—')+'</div>';
+  if(g('IS_prop'))body+='<div class="sh">Datos de la propiedad</div><div class="cm"><span class="cl">Dirección:</span>'+(p.direccionProp||'—')+'</div><div class="cm"><span class="cl">Rol:</span>'+(p.rolProp||'—')+'</div><div class="cm"><span class="cl">Escritura:</span>Fojas '+(p.fojas||'—')+', N° '+(p.numEscritura||'—')+', Año '+(p.anioEscritura||'—')+'</div><div class="cm"><span class="cl">Superficie:</span>'+(p.supPredio||'—')+' m²</div><div class="cm"><span class="cl">D. Norte:</span>'+(p.dNorte||'—')+'</div><div class="cm"><span class="cl">D. Sur:</span>'+(p.dSur||'—')+'</div><div class="cm"><span class="cl">D. Este:</span>'+(p.dEste||'—')+'</div><div class="cm"><span class="cl">D. Oeste:</span>'+(p.dOeste||'—')+'</div>'+(p.utmNorte?'<div class="cm"><span class="cl">UTM Norte:</span>'+p.utmNorte+'</div>':'')+(p.utmEste?'<div class="cm"><span class="cl">UTM Este:</span>'+p.utmEste+'</div>':'');
+  if(g('IS_hon'))body+='<div class="sh">Honorarios</div><div class="cm"><span class="cl">Total:</span><strong>$'+fmt(p.totalHonorarios)+'</strong></div><div class="cm"><span class="cl">Adelanto:</span>$'+fmt(p.adelanto)+'</div><div class="cm"><span class="cl">Saldo:</span>$'+fmt(p.saldo)+'</div><div class="cm"><span class="cl">Estado pago:</span><span class="bg b'+(p.estadoPago==='pagado'?'pa':p.estadoPago==='cuotas'?'c':'p')+'">'+stPago(p.estadoPago)+'</span></div>'+(p.descripcionAcuerdo?'<div class="cm"><span class="cl">Acuerdo:</span>'+p.descripcionAcuerdo+'</div>':'');
+  if(g('IS_chk')&&p.checklist&&p.checklist.length){body+='<div class="sh">Checklist</div>';p.checklist.forEach(function(item){body+='<div class="ci"><div class="cb'+(item.checked?' cbd':'')+'">'+( item.checked?'✓':'')+'</div><span style="flex:1">'+item.texto+'</span>'+(item.checked?'<span class="bg bt">Entregado</span>':'<span class="bg bp">Pendiente</span>')+'</div>'})}
+  if(g('IS_car'))body+='<div class="sh">Características</div>'+(p.descProyecto?'<div class="cm"><span class="cl">Descripción:</span>'+p.descProyecto+'</div>':'')+(p.m2?'<div class="cm"><span class="cl">Superficie:</span>'+p.m2+' m²</div>':'')+(p.materialidad?'<div class="cm"><span class="cl">Materialidad:</span>'+p.materialidad+'</div>':'');
+  if(g('IS_bit')&&p.bitacora&&p.bitacora.length){body+='<div class="sh">Bitácora</div>';p.bitacora.forEach(function(b){body+='<div style="padding:8px 0;border-bottom:1px solid #eee"><div style="font-size:11px;color:#888;margin-bottom:3px">'+b.fecha+'</div><div>'+b.texto+'</div></div>'})}
+  body+=pdfPie(cfg);abrirPDF(body);
+}
+function pdfChk(){
+  var pid=(document.getElementById('IPC')||{}).value;if(!pid)return alert('Selecciona un proyecto');
+  var ps=rdb('proyectos',[]);var p=ps.find(function(x){return x.id===pid});if(!p)return;
+  var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
+  var cbs=document.querySelectorAll('[id^=IC]');
+  var sel=[];cbs.forEach(function(cb,i){if(cb.checked&&p.checklist[i])sel.push(p.checklist[i])});
+  var body=pdfCab(cfg,'Documentación requerida',p.nombre,p.cliente);
+  body+='<p style="margin-bottom:16px">Estimado/a <strong>'+(p.cliente||'propietario')+'</strong>, le solicitamos reunir y entregar los siguientes documentos:</p>';
+  sel.forEach(function(item){body+='<div class="ci"><div class="cb'+(item.checked?' cbd':'')+'">'+( item.checked?'✓':'')+'</div><span style="flex:1">'+item.texto+'</span><span style="font-size:11px;color:#888">'+(item.checked?'Entregado':'Pendiente')+'</span></div>'});
+  body+='<div style="margin-top:24px;font-size:12px;color:#666">Consultas: '+(cfg.arquitecto||'el arquitecto')+(cfg.telefono?' · '+cfg.telefono:'')+'</div>';
+  body+=pdfPie(cfg);abrirPDF(body);
+}
+function pdfUrg(){
+  var ps=rdb('proyectos',[]);var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
+  var iu=(document.getElementById('IU_u')||{}).checked;var ie=(document.getElementById('IU_e')||{}).checked;
+  var fil=ps.filter(function(p){return(iu&&p.urgencia==='urgente')||(ie&&p.urgencia==='ejecutar')});
+  fil.sort(function(a,b){return({urgente:0,ejecutar:1}[a.urgencia]||1)-({urgente:0,ejecutar:1}[b.urgencia]||1)});
+  var body=pdfCab(cfg,'Proyectos urgentes','','');
+  body+='<table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Trámite</th><th>Prioridad</th><th>Estado</th></tr></thead><tbody>';
+  fil.forEach(function(p){body+='<tr><td class="co">'+(p.codigo||'—')+'</td><td><strong>'+(p.nombre||'—')+'</strong></td><td>'+(p.cliente||'—')+'</td><td>'+(p.tipoTramite||'—')+'</td><td><span class="bg '+(p.urgencia==='urgente'?'bu':'be')+'">'+stUrg(p.urgencia)+'</span></td><td><span class="bg '+(p.estado==='ejecucion'?'bej':p.estado==='terminado'?'bt':'bpo')+'">'+stEst(p.estado)+'</span></td></tr>'});
+  body+='</tbody></table>'+pdfPie(cfg);abrirPDF(body);
+}
+function pdfEst(){
+  var ps=rdb('proyectos',[]);var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
+  var iej=(document.getElementById('IE_ej')||{}).checked;var ipe=(document.getElementById('IE_pe')||{}).checked;var ite=(document.getElementById('IE_te')||{}).checked;
+  var fil=ps.filter(function(p){return(iej&&p.estado==='ejecucion')||(ipe&&(p.estado==='porEjecutar'||!p.estado))||(ite&&p.estado==='terminado')});
+  var body=pdfCab(cfg,'Estado de proyectos','','');
+  body+='<table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Trámite</th><th>Proceso</th><th>Estado</th><th>Pago</th></tr></thead><tbody>';
+  fil.forEach(function(p){body+='<tr><td class="co">'+(p.codigo||'—')+'</td><td><strong>'+(p.nombre||'—')+'</strong></td><td>'+(p.cliente||'—')+'</td><td>'+(p.tipoTramite||'—')+'</td><td>'+(p.proceso||'—')+'</td><td><span class="bg '+(p.estado==='ejecucion'?'bej':p.estado==='terminado'?'bt':'bpo')+'">'+stEst(p.estado)+'</span></td><td><span class="bg '+(p.estadoPago==='pagado'?'bpa':p.estadoPago==='cuotas'?'bc':'bp')+'">'+stPago(p.estadoPago)+'</span></td></tr>'});
+  body+='</tbody></table>'+pdfPie(cfg);abrirPDF(body);
+}
+function pdfFin(){
+  var ps=rdb('proyectos',[]);var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
+  var ip=(document.getElementById('IF_p')||{}).checked;var ic=(document.getElementById('IF_c')||{}).checked;var ipa=(document.getElementById('IF_pa')||{}).checked;
+  var fil=ps.filter(function(p){return p.totalHonorarios&&((ip&&p.estadoPago==='pendiente')||(ic&&p.estadoPago==='cuotas')||(ipa&&p.estadoPago==='pagado'))});
+  var tot=fil.reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+  var pen=fil.filter(function(p){return p.estadoPago==='pendiente'}).reduce(function(a,p){return a+parseFloat(p.saldo||p.totalHonorarios||0)},0);
+  var body=pdfCab(cfg,'Informe financiero','','');
+  body+='<div style="display:flex;gap:40px;margin-bottom:20px"><div><div style="color:#888;font-size:11px">Total</div><div style="font-size:20px;font-weight:bold">$'+fmt(tot)+'</div></div><div><div style="color:#888;font-size:11px">Saldo pendiente</div><div style="font-size:20px;font-weight:bold;color:#a32d2d">$'+fmt(pen)+'</div></div></div>';
+  body+='<table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Total</th><th>Adelanto</th><th>Saldo</th><th>Estado</th></tr></thead><tbody>';
+  fil.forEach(function(p){body+='<tr><td class="co">'+(p.codigo||'—')+'</td><td><strong>'+(p.nombre||'—')+'</strong></td><td>'+(p.cliente||'—')+'</td><td>$'+fmt(p.totalHonorarios)+'</td><td>$'+fmt(p.adelanto)+'</td><td>$'+fmt(p.saldo)+'</td><td><span class="bg '+(p.estadoPago==='pagado'?'bpa':p.estadoPago==='cuotas'?'bc':'bp')+'">'+stPago(p.estadoPago)+'</span></td></tr>'});
+  body+='</tbody></table>'+pdfPie(cfg);abrirPDF(body);
+}
+
+// ══════════════════════════════════════
+// PRESUPUESTOS
+// ══════════════════════════════════════
+function vPres(){
+  var ps=rdb('presupuestos',[]);
+  document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="editPres(null)">+ Nueva cotización</button>';
+  var rows=ps.length===0?'<tr><td colspan="5"><div class="empty">Sin presupuestos</div></td></tr>':
+    ps.map(function(p,i){var tot=(p.items||[]).reduce(function(a,x){return a+parseFloat(x.valor||0)},0);return'<tr><td style="font-weight:600">'+String(i+1).padStart(3,'0')+'</td><td>'+(p.cliente||'—')+'</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.desc||'—')+'</td><td style="font-weight:600">$'+fmt(tot)+'</td><td>'+(p.fecha||'—')+'</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editPres(\''+p.id+'\')">Editar</button> <button class="btn btn-sm btn-s" onclick="printPres(\''+p.id+'\')">Imprimir PDF</button> <button class="btn btn-sm btn-d" onclick="delPres(\''+p.id+'\')">×</button></td></tr>'}).join('');
+  document.getElementById('MAIN').innerHTML='<div class="card"><div class="twrap"><table><thead><tr><th>N°</th><th>Cliente</th><th>Descripción</th><th>Total neto</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function delPres(id){if(!confirm('¿Eliminar?'))return;wdb('presupuestos',rdb('presupuestos',[]).filter(function(p){return p.id!==id}));vPres()}
+function editPres(id){
+  var ps=rdb('presupuestos',[]);var clis=rdb('clientes',[]);
+  var cfg=rdb('config',{empresa:'',arquitecto:'',email:''});
+  var p=id?ps.find(function(x){return x.id===id}):null;
+  if(!p)p={id:uid(),clienteId:'',cliente:'',desc:'',items:[{desc:'',valor:0}],nota:'Valor neto, no incluye IVA.',fecha:new Date().toLocaleDateString('es-CL'),firma:cfg.arquitecto||''};
+  var isNew=!id;
+  var cliOpts=clis.map(function(c){return'<option value="'+c.id+'"'+(p.clienteId===c.id?' selected':'')+'>'+c.nombre+'</option>'}).join('');
+  var itemsH=p.items.map(function(it,i){return'<div class="row" style="padding:4px 0"><input placeholder="Descripción del ítem" class="inp f1" id="PID'+i+'" value="'+(it.desc||'')+'"><input type="number" placeholder="$" class="inp" id="PIV'+i+'" value="'+(it.valor||'')+'" style="width:130px;margin-left:6px"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:4px">×</button></div>'}).join('');
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()"><div class="modal">'+
+    '<div class="mhdr"><div class="mttl">Presupuesto / Cotización</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
+    '<div class="g2"><div class="fld"><label>Cliente</label><select id="PRCL" style="width:100%"><option value="">— Seleccionar —</option>'+cliOpts+'</select></div>'+
+    '<div class="fld"><label>Fecha</label><input id="PRFE" value="'+(p.fecha||'')+'"></div></div>'+
+    '<div class="fld"><label>Descripción de los trabajos</label><textarea id="PRDE">'+(p.desc||'')+'</textarea></div>'+
+    '<div class="sec-ttl">Ítems y costos</div>'+
+    '<div id="PRIT">'+itemsH+'</div>'+
+    '<button class="btn btn-sm mt2" onclick="addItemPres()">+ Agregar ítem</button>'+
+    '<div class="hr"></div>'+
+    '<div class="fld"><label>Nota al pie (editable)</label><input id="PRNO" value="'+(p.nota||'Valor neto, no incluye IVA ni otros impuestos.')+'"></div>'+
+    '<div class="fld"><label>Firma / Profesional</label><input id="PRFR" value="'+(p.firma||cfg.arquitecto||'')+'"></div>'+
+    '<div class="hr"></div>'+
+    '<div class="sec-ttl">Condiciones de pago</div>'+
+    '<div class="fld"><textarea id="PRCOND" style="min-height:60px">'+(p.condPago||'50% al inicio de los trabajos y 50% al ingreso del expediente a la Dirección de Obras Municipales.')+'</textarea></div>'+
+    '<div class="fld"><label>Nota recepción definitiva (opcional)</label><input id="PRRECEP" value="'+(p.notaRecep||'')+'" placeholder="Ej: Incluye tramitación de recepción definitiva al 100% de construcción."></div>'+
+    '<div class="hr"></div>'+
+    '<div class="sec-ttl">Datos de transferencia (opcional)</div>'+
+    '<div class="g2"><div class="fld"><label>Banco</label><input id="PRBCO" value="'+(p.banco||'')+'"></div>'+
+    '<div class="fld"><label>Tipo de cuenta</label><input id="PRTCTA" value="'+(p.tipoCuenta||'')+'" placeholder="Cta. corriente, vista..."></div></div>'+
+    '<div class="g2"><div class="fld"><label>N° de cuenta</label><input id="PRNCTA" value="'+(p.numCuenta||'')+'"></div>'+
+    '<div class="fld"><label>RUT titular</label><input id="PRRUT" value="'+(p.rutCuenta||'')+'"></div></div>'+
+    '<div class="fld"><label>Email transferencia</label><input id="PRMAIL" value="'+(p.emailCuenta||'')+'"></div>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeMod()">Cancelar</button><button class="btn btn-p" onclick="savePres(\''+p.id+'\','+isNew+')">Guardar</button></div>'+
+    '</div></div>';
+}
+function addItemPres(){var c=document.getElementById('PRIT');var i=c.querySelectorAll('.row').length;c.insertAdjacentHTML('beforeend','<div class="row" style="padding:4px 0"><input placeholder="Descripción" class="inp f1" id="PID'+i+'"><input type="number" placeholder="$" class="inp" id="PIV'+i+'" style="width:130px;margin-left:6px"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:4px">×</button></div>')}
+function savePres(id,isNew){
+  var ps=rdb('presupuestos',[]);var clis=rdb('clientes',[]);
+  var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var cid=g('PRCL');var cl=clis.find(function(c){return c.id===cid});
+  var dInputs=document.querySelectorAll('[id^=PID]');var vInputs=document.querySelectorAll('[id^=PIV]');
+  var items=Array.from(dInputs).map(function(el,i){return{desc:el.value,valor:parseFloat((vInputs[i]||{}).value||0)}}).filter(function(it){return it.desc});
+  var upd={id:id,clienteId:cid,cliente:cl?cl.nombre:'',desc:g('PRDE'),items:items,nota:g('PRNO'),firma:g('PRFR'),fecha:g('PRFE'),condPago:g('PRCOND'),notaRecep:g('PRRECEP'),banco:g('PRBCO'),tipoCuenta:g('PRTCTA'),numCuenta:g('PRNCTA'),rutCuenta:g('PRRUT'),emailCuenta:g('PRMAIL')};
+  if(isNew)ps.push(upd);else{var i=ps.findIndex(function(x){return x.id===id});if(i>=0)ps[i]=upd}
+  wdb('presupuestos',ps);closeMod();vPres();
+}
+function printPres(id){
+  var ps=rdb('presupuestos',[]);var p=ps.find(function(x){return x.id===id});if(!p)return;
+  var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
+  var logo=localStorage.getItem('arq_logo')||'';
+  var tot=(p.items||[]).reduce(function(a,x){return a+parseFloat(x.valor||0)},0);
+  var body=pdfCab(cfg,'Presupuesto / Cotización','',p.cliente||'');
+  body+='<p style="margin-bottom:16px">'+(p.desc||'')+'</p>';
+  body+='<table><thead><tr><th style="width:70%">Descripción</th><th style="text-align:right">Valor</th></tr></thead><tbody>';
+  (p.items||[]).forEach(function(it){body+='<tr><td>'+it.desc+'</td><td style="text-align:right">$'+fmt(it.valor)+'</td></tr>'});
+  body+='<tr style="font-weight:bold;font-size:14px"><td style="text-align:right;border-top:2px solid #222">TOTAL NETO</td><td style="text-align:right;border-top:2px solid #222">$'+fmt(tot)+'</td></tr>';
+  body+='</tbody></table><div style="color:#666;font-size:11px;margin-top:16px;border-top:1px solid #ddd;padding-top:12px">'+(p.nota||'')+'</div>';
+  if(p.condPago)body+='<div style="font-size:12px;margin-top:12px"><strong>Condiciones de pago:</strong> '+p.condPago+'</div>';
+  if(p.notaRecep)body+='<div style="font-size:12px;margin-top:8px">'+p.notaRecep+'</div>';
+  if(p.banco||p.numCuenta){body+='<div style="margin-top:16px;padding:12px;background:#f9f9f9;border-radius:6px;font-size:12px"><strong>Datos transferencia:</strong> ';if(p.banco)body+=p.banco+' · ';if(p.tipoCuenta)body+=p.tipoCuenta+' · ';if(p.numCuenta)body+='N° '+p.numCuenta;if(p.rutCuenta)body+=' · RUT '+p.rutCuenta;if(p.emailCuenta)body+=' · '+p.emailCuenta;body+='</div>'}
+  body+='<div class="fa"><div style="display:flex;gap:60px"><div class="fl">'+(p.firma||cfg.arquitecto||'Arquitecto')+'</div><div class="fl">Firma cliente</div></div></div>';
+  abrirPDF(body);
+}
+
+// ══════════════════════════════════════
+// HONORARIOS
+// ══════════════════════════════════════
+function vHon(){
+  var ps=rdb('proyectos',[]);
+  var conH=ps.filter(function(p){return p.totalHonorarios});
+  var totG=conH.reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+  var totP=ps.filter(function(p){return p.estadoPago==='pendiente'}).reduce(function(a,p){return a+parseFloat(p.saldo||p.totalHonorarios||0)},0);
+  var totC=ps.filter(function(p){return p.estadoPago==='pagado'}).reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+  var totCu=ps.filter(function(p){return p.estadoPago==='cuotas'}).reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
+  var byMonth={};
+  conH.forEach(function(p){if(!p.fechaInicio)return;var d=new Date(p.fechaInicio);if(isNaN(d.getTime()))return;var k=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0');byMonth[k]=(byMonth[k]||0)+parseFloat(p.totalHonorarios||0)});
+  var months=Object.keys(byMonth).sort().slice(-12);
+  var maxVal=months.reduce(function(a,k){return Math.max(a,byMonth[k])},1);
+  var bars=months.map(function(k){var v=byMonth[k];var pct=Math.round(v/maxVal*100);return'<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:4px"><div style="flex:1;display:flex;align-items:flex-end;width:100%;padding:0 2px"><div style="background:var(--txi);border-radius:3px 3px 0 0;width:100%;height:'+pct+'%;min-height:4px" title="'+k+': $'+Number(v).toLocaleString('es-CL')+'"></div></div><div class="tsm" style="font-size:9px;text-align:center;color:var(--tx3);margin-top:4px;white-space:nowrap">'+k.slice(5)+'</div></div>'}).join('');
+  var rows=conH.length===0?'<tr><td colspan="7"><div class="empty">Sin honorarios</div></td></tr>':
+    conH.map(function(p){return'<tr><td style="font-weight:600;cursor:pointer" onclick="editProy(\'+'+p.id+'+\')">'+(p.nombre||'—')+'</td><td>'+(p.cliente||'—')+'</td><td style="font-weight:600">$'+fmt(p.totalHonorarios)+'</td><td>$'+fmt(p.adelanto)+'</td><td>$'+fmt(p.saldo)+'</td><td>'+(p.formaCobro==='m2'?'Por m²':p.formaCobro==='lote'?'Por lote':p.formaCobro==='total'?'Total acordado':'Otro')+'</td><td><span class="badge b-'+(p.estadoPago||'pendiente')+'">'+stPago(p.estadoPago)+'</span></td></tr>'}).join('');
+  document.getElementById('MAIN').innerHTML=
+    '<div class="g4 mb2">'+
+    '<div class="stat"><div class="stat-lbl">Total general</div><div class="stat-val">$'+fmt(totG)+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">Pendiente</div><div class="stat-val" style="color:var(--txd)">$'+fmt(totP)+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">En cuotas</div><div class="stat-val" style="color:var(--txw)">$'+fmt(totCu)+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">Cobrado</div><div class="stat-val" style="color:var(--txs)">$'+fmt(totC)+'</div></div></div>'+
+    (months.length>0?'<div class="card mb2"><div class="sec-ttl">Ingresos por mes</div><div style="display:flex;align-items:flex-end;gap:3px;height:100px;padding-bottom:28px">'+bars+'</div></div>':'')+
+    '<div class="card"><div class="twrap"><table><thead><tr><th>Proyecto</th><th>Cliente</th><th>Total</th><th>Adelanto</th><th>Saldo</th><th>Forma cobro</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+
+// ══════════════════════════════════════
+// CONFIGURACIÓN
+// ══════════════════════════════════════
+function vConf(){
+  var cfg=rdb('config',{empresa:'Mi Estudio de Arquitectura',arquitecto:'',email:'',telefono:''});
+  var u1=localStorage.getItem('arq_u1_UN')||'Usuario 1';
+  var u2=localStorage.getItem('arq_u2_UN')||'Usuario 2';
+  document.getElementById('MAIN').innerHTML=
+    '<div class="g2">'+
+    '<div><div class="card"><div class="sec-ttl">Datos de la empresa</div>'+
+    '<div class="fld"><label>Nombre empresa / Estudio</label><input id="CFE" value="'+(cfg.empresa||'')+'"></div>'+
+    '<div class="fld"><label>Arquitecto / Profesional</label><input id="CFA" value="'+(cfg.arquitecto||'')+'"></div>'+
+    '<div class="fld"><label>Email</label><input id="CFEM" value="'+(cfg.email||'')+'"></div>'+
+    '<div class="fld"><label>Teléfono</label><input id="CFT" value="'+(cfg.telefono||'')+'"></div></div>'+
+    '<div class="card"><div class="sec-ttl">Usuario activo: '+CU+'</div>'+
+    '<div class="fld"><label>Nombre</label><input id="CFU'+CU+'N" value="'+(rdb('profNombre','')||'')+'"></div>'+
+    '<div class="fld"><label>Profesión / Cargo</label><input id="CFU'+CU+'PRF" value="'+(rdb('profProfesion','')||'')+'"></div>'+
+    '<div class="fld"><label>Teléfono personal</label><input id="CFU'+CU+'TEL" value="'+(rdb('profTelefono','')||'')+'"></div>'+
+    '<div class="fld"><label>Email personal</label><input id="CFU'+CU+'MAIL" value="'+(rdb('profEmail','')||'')+'"></div>'+
+    '<div class="fld"><label>Nombre selector (corto)</label><input id="CFU1" value="'+u1+'" placeholder="Usuario 1"></div>'+
+    '<div class="fld"><label>Nombre Usuario 2</label><input id="CFU2" value="'+u2+'" placeholder="Usuario 2"></div></div>'+
+    '<button class="btn btn-p" onclick="saveConf()">💾 Guardar configuración</button></div>'+
+    '<div><div class="card"><div class="sec-ttl">Logo de la empresa</div>'+
+    '<div class="tsm tx2 mb2">Aparecerá en el sidebar y en los informes PDF.</div>'+
+    '<div id="LPREV" style="margin-bottom:12px;min-height:50px">'+( localStorage.getItem('arq_logo')?'<img src="'+localStorage.getItem('arq_logo')+'" style="max-height:60px;max-width:160px;border-radius:4px">':'<span class="tsm tx2">Sin logo</span>')+'</div>'+
+    '<input type="file" id="LFILE" accept="image/*" onchange="uploadLogo(this)" style="font-size:13px">'+
+    (localStorage.getItem('arq_logo')?'<br><button class="btn btn-sm btn-d mt2" onclick="deleteLogo()">Eliminar logo</button>':'')+
+    '</div>'+
+    '<div class="card"><div class="sec-ttl">Exportar / Importar datos</div>'+
+    '<div class="tsm tx2 mb2">Los datos se guardan en este navegador. Exporta para hacer backup o para trasladarlos.</div>'+
+    '<button class="btn btn-sm mt1" onclick="exportData()">📤 Exportar</button> '+
+    '<label class="btn btn-sm" style="cursor:pointer">📥 Importar<input type="file" accept=".json" onchange="importData(this)" style="display:none"></label>'+
+    '</div></div></div>';
+}
+function saveConf(){
+  var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var cfg={empresa:g('CFE'),arquitecto:g('CFA'),email:g('CFEM'),telefono:g('CFT')};
+  wdb('config',cfg);
+  wdb('profNombre',g('CFU'+CU+'N'));
+  wdb('profProfesion',g('CFU'+CU+'PRF'));
+  wdb('profTelefono',g('CFU'+CU+'TEL'));
+  wdb('profEmail',g('CFU'+CU+'MAIL'));
+  localStorage.setItem('arq_u1_UN',g('CFU1')||'Usuario 1');
+  localStorage.setItem('arq_u2_UN',g('CFU2')||'Usuario 2');
+  document.getElementById('EMPNM').textContent=cfg.empresa;
+  updateUSel();
+  alert('✓ Configuración guardada');
+}
+function uploadLogo(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){var data=e.target.result;localStorage.setItem('arq_logo',data);_cache['arq_logo']=data;db.collection('config').doc('logo').set({value:data}).catch(function(e){console.warn(e)});loadLogo();vConf()};r.readAsDataURL(f)}
+function deleteLogo(){localStorage.removeItem('arq_logo');_cache['arq_logo']=null;db.collection('config').doc('logo').delete().catch(function(e){});loadLogo();vConf()}
+function loadLogo(){var logo=localStorage.getItem('arq_logo');var img=document.getElementById('LOGO');var ph=document.getElementById('LOGOPH');if(logo&&img&&ph){img.src=logo;img.style.display='block';ph.style.display='none'}else if(img&&ph){img.style.display='none';ph.style.display=''}}
+function updateUSel(){var s=document.getElementById('USEL');if(!s)return;s.options[0].text=localStorage.getItem('arq_u1_UN')||'Usuario 1';s.options[1].text=localStorage.getItem('arq_u2_UN')||'Usuario 2'}
+function exportData(){
+  var data={};
+  ['proyectos','clientes','tramites','presupuestos','config'].forEach(function(k){
+    data['u1_'+k]=_cache['arq_u1_'+k]||JSON.parse(localStorage.getItem('arq_u1_'+k)||'null');
+    data['u2_'+k]=_cache['arq_u2_'+k]||JSON.parse(localStorage.getItem('arq_u2_'+k)||'null');
+  });
+  data.logo=_cache['arq_logo']||localStorage.getItem('arq_logo');
+  data.u1_UN=localStorage.getItem('arq_u1_UN');data.u2_UN=localStorage.getItem('arq_u2_UN');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download='arqgestion_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+}
+function importData(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){try{var d=JSON.parse(e.target.result);['proyectos','clientes','tramites','presupuestos','config'].forEach(function(k){if(d['u1_'+k])localStorage.setItem('arq_u1_'+k,JSON.stringify(d['u1_'+k]));if(d['u2_'+k])localStorage.setItem('arq_u2_'+k,JSON.stringify(d['u2_'+k]))});if(d.logo)localStorage.setItem('arq_logo',d.logo);if(d.u1_UN)localStorage.setItem('arq_u1_UN',d.u1_UN);if(d.u2_UN)localStorage.setItem('arq_u2_UN',d.u2_UN);alert('✓ Datos importados correctamente');go(CV)}catch(err){alert('Error al importar. Verifica el archivo.')}};r.readAsText(f)}
+
+
+// ── Client inline create/edit ──
+function cliMode(mode){
+  var sel=document.getElementById('TC_SEL');
+  var form=document.getElementById('TC_FORM');
+  var lbl=document.getElementById('TC_FORMLBL');
+  var bsel=document.getElementById('CBTN_SEL');
+  var bnew=document.getElementById('CBTN_NEW');
+  var bedit=document.getElementById('CBTN_EDIT');
+  if(mode==='sel'){
+    if(sel)sel.classList.remove('hidden');
+    if(form)form.classList.add('hidden');
+    if(bsel)bsel.classList.add('btn-p');if(bnew)bnew.classList.remove('btn-p');
+  } else if(mode==='new'){
+    if(sel)sel.classList.add('hidden');
+    if(form)form.classList.remove('hidden');
+    if(lbl){lbl.textContent='Completa los datos del nuevo cliente';lbl.style.background='var(--bgs)';lbl.style.color='var(--txs)'}
+    if(bsel)bsel.classList.remove('btn-p');if(bnew)bnew.classList.add('btn-p');
+    // clear form
+    ['CLI_N','CLI_R','CLI_T','CLI_E','CLI_D','CLI_O'].forEach(function(id){var el=document.getElementById(id);if(el)el.value=''});
+    var idEl=document.getElementById('CLI_ID');if(idEl)idEl.value='';
+    var rl=document.getElementById('CLI_RL');if(rl)rl.value='cliente';
+  } else if(mode==='edit'){
+    var cid=(document.getElementById('PC2')||{}).value||(document.getElementById('PC')||{}).value||'';
+    if(!cid){alert('Selecciona un cliente primero');return}
+    var clis=rdb('clientes',[]);
+    var cl=clis.find(function(x){return x.id===cid});
+    if(!cl)return;
+    if(sel)sel.classList.add('hidden');
+    if(form)form.classList.remove('hidden');
+    if(lbl){lbl.textContent='Editando: '+cl.nombre;lbl.style.background='var(--bgw)';lbl.style.color='var(--txw)'}
+    if(bsel)bsel.classList.remove('btn-p');if(bedit)bedit.classList.add('btn-p');
+    var idEl=document.getElementById('CLI_ID');if(idEl)idEl.value=cl.id;
+    var nEl=document.getElementById('CLI_N');if(nEl)nEl.value=cl.nombre||'';
+    var rEl=document.getElementById('CLI_R');if(rEl)rEl.value=cl.rut||'';
+    var tEl=document.getElementById('CLI_T');if(tEl)tEl.value=cl.telefono||'';
+    var eEl=document.getElementById('CLI_E');if(eEl)eEl.value=cl.email||'';
+    var dEl=document.getElementById('CLI_D');if(dEl)dEl.value=cl.direccion||'';
+    var oEl=document.getElementById('CLI_O');if(oEl)oEl.value=cl.observaciones||'';
+    var rlEl=document.getElementById('CLI_RL');if(rlEl)rlEl.value=cl.rolCliente||'cliente';
+  }
+}
+function saveCliInline(){
+  var g=function(id){return(document.getElementById(id)||{}).value||''};
+  var nombre=g('CLI_N').trim();
+  if(!nombre){alert('El nombre es obligatorio');return}
+  var clis=rdb('clientes',[]);
+  var existingId=g('CLI_ID');
+  var isNew=!existingId;
+  var newId=existingId||uid();
+  var upd={id:newId,nombre:nombre,rut:g('CLI_R'),telefono:g('CLI_T'),email:g('CLI_E'),direccion:g('CLI_D'),rolCliente:g('CLI_RL')||'cliente',observaciones:g('CLI_O'),extraCampos:[]};
+  if(isNew){clis.push(upd)}else{var idx=clis.findIndex(function(x){return x.id===newId});if(idx>=0)clis[idx]=upd}
+  wdb('clientes',clis);
+  // Update selects with new client
+  var opt='<option value="'+newId+'" selected>'+nombre+(upd.rut?' · '+upd.rut:'')+'</option>';
+  var pc2=document.getElementById('PC2');
+  var pc=document.getElementById('PC');
+  if(pc2){
+    var existing=pc2.querySelector('option[value="'+newId+'"]');
+    if(existing){existing.textContent=nombre+(upd.rut?' · '+upd.rut:'');pc2.value=newId}
+    else{pc2.insertAdjacentHTML('beforeend','<option value="'+newId+'">'+nombre+(upd.rut?' · '+upd.rut:'')+'</option>');pc2.value=newId}
+  }
+  if(pc){
+    var existing2=pc.querySelector('option[value="'+newId+'"]');
+    if(existing2){existing2.textContent=nombre+(upd.rut?' · '+upd.rut:'');pc.value=newId}
+    else{pc.insertAdjacentHTML('beforeend','<option value="'+newId+'">'+nombre+(upd.rut?' · '+upd.rut:'')+'</option>');pc.value=newId}
+  }
+  // Show preview
+  var prev=document.getElementById('CLIPREV');if(prev)prev.innerHTML=buildCliPrev(upd);
+  // Switch back to select mode
+  cliMode('sel');
+  // Add edit button if it didn't exist
+  var bedit=document.getElementById('CBTN_EDIT');
+  if(!bedit){
+    var bnew=document.getElementById('CBTN_NEW');
+    if(bnew)bnew.insertAdjacentHTML('afterend','<button id="CBTN_EDIT" class="btn btn-sm" onclick="cliMode(\'edit\')">✏️ Editar seleccionado</button>');
+  }
+  var lbl=document.getElementById('TC_FORMLBL');
+  if(lbl)lbl.textContent='✓ Cliente '+(isNew?'creado':'actualizado')+' y vinculado correctamente';
+}
+
+// ── tab/modal helpers ──
+function swTab(el,id){
+  document.querySelectorAll('.tabs .tab').forEach(function(t){t.classList.remove('on')});el.classList.add('on');
+  document.querySelectorAll('.modal [id^=T]').forEach(function(d){if(d.classList.contains('tab')||d.classList.contains('tabs'))return;d.classList.add('hidden')});
+  var target=document.getElementById(id);if(target)target.classList.remove('hidden');
+}
+function closeMod(){document.getElementById('MOD').innerHTML=''}
+
+// ── Init ──
+function initApp(){
+  loadLogo();
+  var iCfg=rdb('config',{empresa:'Mi Estudio de Arquitectura'});
+  document.getElementById('EMPNM').textContent=iCfg.empresa||'Mi Estudio de Arquitectura';
+  updateUSel();
+  go('dashboard');
+}
+
+// Show loading indicator while Firebase loads
+document.getElementById('MAIN').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px"><div style="font-size:32px">☁️</div><div style="font-size:15px;font-weight:600">Conectando con la nube...</div><div style="font-size:13px;color:var(--tx2)">Cargando tus datos</div></div>';
+loadLogo();
+updateUSel();
+
+loadAll(function(){
+  initApp();
+});
+</script>
+</body>
+</html>
