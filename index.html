@@ -174,7 +174,8 @@ window.dispatchEvent(new Event("arq-firebase-ready"));
     <div class="sb-sec">
       <div class="sb-lbl">Principal</div>
       <div class="sb-item" data-v="dashboard" onclick="go('dashboard')"><span class="sb-ico">◈</span>Dashboard</div>
-      <div class="sb-item" data-v="proyectos" onclick="go('proyectos')"><span class="sb-ico">⊟</span>Proyectos</div>
+      <div class="sb-item" data-v="planificacion" onclick="go('planificacion')"><span class="sb-ico">📋</span>Planificación</div>
+      <div class="sb-item" data-v="proyectos" onclick="go('proyectos')"><span class="sb-ico">⊟</span>Base de datos</div>
       <div class="sb-item" data-v="buscador" onclick="go('buscador')"><span class="sb-ico">⊕</span>Buscador</div>
     </div>
     <div class="sb-sec">
@@ -229,6 +230,12 @@ function _arqGetAllData(){
   var keys=['proyectos','clientes','tramites','presupuestos','config',
             'profNombre','profProfesion','profTelefono','profEmail'];
   var data={logo:localStorage.getItem('arq_logo')||''};
+  // plan subtareas data (shared, not per-user)
+  var planV=localStorage.getItem('arq_plan_st');if(planV)data.plan_st=planV;
+  var planOwn=localStorage.getItem('arq_plan_own');if(planOwn)data.plan_own=planOwn;
+  var bancosV=localStorage.getItem('arq_bancos');if(bancosV)data.bancos=bancosV;
+  var notasV=localStorage.getItem('arq_notas_pred');if(notasV)data.notas_pred=notasV;
+  var profsV=localStorage.getItem('arq_profesionales');if(profsV)data.profesionales=profsV;
   ['u1','u2'].forEach(function(u){
     keys.forEach(function(k){
       var v=localStorage.getItem('arq_'+u+'_'+k);
@@ -243,6 +250,11 @@ function _arqApplyData(data){
   if(!data)return;
   var keys=['proyectos','clientes','tramites','presupuestos','config',
             'profNombre','profProfesion','profTelefono','profEmail'];
+  if(data.plan_st)localStorage.setItem('arq_plan_st',data.plan_st);
+  if(data.plan_own)localStorage.setItem('arq_plan_own',data.plan_own);
+  if(data.bancos)localStorage.setItem('arq_bancos',data.bancos);
+  if(data.notas_pred)localStorage.setItem('arq_notas_pred',data.notas_pred);
+  if(data.profesionales)localStorage.setItem('arq_profesionales',data.profesionales);
   ['u1','u2'].forEach(function(u){
     keys.forEach(function(k){
       if(data[u+'_'+k]!==undefined)localStorage.setItem('arq_'+u+'_'+k,data[u+'_'+k]);
@@ -320,7 +332,7 @@ function closeSB(){
 
 // ── Navigation ──
 var CV='dashboard';
-var TITLES={dashboard:'Dashboard',proyectos:'Proyectos',buscador:'Buscador / Base de datos',clientes:'Clientes',tramites:'Tipos de Trámites',informes:'Informes / PDF',presupuestos:'Presupuestos',honorarios:'Honorarios',config:'Configuración'};
+var TITLES={dashboard:'Dashboard',planificacion:'Planificación de Proyectos',proyectos:'Base de datos de Proyectos',buscador:'Buscador / Base de datos',clientes:'Clientes',tramites:'Tipos de Trámites',informes:'Informes / PDF',presupuestos:'Presupuestos',honorarios:'Honorarios',config:'Configuración'};
 function go(v){
   if(window.innerWidth<=768)closeSB();
   CV=v;
@@ -330,7 +342,7 @@ function go(v){
   document.getElementById('PTTL').textContent=TITLES[v]||v;
   document.getElementById('PACT').innerHTML='';
   document.getElementById('MAIN').innerHTML='';
-  ({dashboard:vDash,proyectos:vProys,buscador:vBusc,clientes:vClis,tramites:vTrams,informes:vInformes,presupuestos:vPres,honorarios:vHon,config:vConf})[v]&&({dashboard:vDash,proyectos:vProys,buscador:vBusc,clientes:vClis,tramites:vTrams,informes:vInformes,presupuestos:vPres,honorarios:vHon,config:vConf})[v]();
+  ({dashboard:vDash,planificacion:vPlan,proyectos:vProys,buscador:vBusc,clientes:vClis,tramites:vTrams,informes:vInformes,presupuestos:vPres,honorarios:vHon,config:vConf})[v]&&({dashboard:vDash,planificacion:vPlan,proyectos:vProys,buscador:vBusc,clientes:vClis,tramites:vTrams,informes:vInformes,presupuestos:vPres,honorarios:vHon,config:vConf})[v]();
 }
 
 // ── Default tramites ──
@@ -371,6 +383,363 @@ function cloudBadge(p){
   var lbl=p.nubeServicio==='drive'?'📁 Drive':p.nubeServicio==='dropbox'?'📦 Dropbox':'🔗 Link';
   var cls=p.nubeServicio==='drive'?'cloud-a':p.nubeServicio==='dropbox'?'cloud-d':'cloud-n';
   return '<a href="'+p.nubeUrl+'" target="_blank" class="'+cls+'">'+lbl+'</a>';
+}
+
+// ══════════════════════════════════════
+// PLANIFICACIÓN
+// ══════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// PLANIFICACIÓN v2
+// arq_plan_st  = { [proyId]: { subtareas, _stVisible, desc, fechaCompletado } }
+// arq_plan_own = [ {...} ] proyectos propios
+// ══════════════════════════════════════════════════════════════════
+function getPlanST(id){var all=getPlanAllST();return all[id]||{subtareas:[],_stVisible:true,desc:'',fechaCompletado:null}}
+function getPlanAllST(){try{return JSON.parse(localStorage.getItem('arq_plan_st')||'{}')}catch(e){return{}}}
+function savePlanST(id,obj){var all=getPlanAllST();all[id]=obj;localStorage.setItem('arq_plan_st',JSON.stringify(all));clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800)}
+function getPlanOwn(){try{return JSON.parse(localStorage.getItem('arq_plan_own')||'[]')}catch(e){return[]}}
+function savePlanOwn(arr){localStorage.setItem('arq_plan_own',JSON.stringify(arr));clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800)}
+
+var _planFiltro='activos';
+var _planBusq='';
+var _planUrgFil='';
+
+function planGetAll(){
+  var bdActivos=rdb('proyectos',[]).filter(function(p){return p.estado==='ejecucion'||p.estado==='porEjecutar'||!p.estado}).map(function(p){return Object.assign({},p,{_origen:'bd'})});
+  var bdTerm=rdb('proyectos',[]).filter(function(p){return p.estado==='terminado'}).map(function(p){return Object.assign({},p,{_origen:'bd'})});
+  var own=getPlanOwn().map(function(p){return Object.assign({},p,{_origen:'own'})});
+  return {activos:bdActivos.concat(own.filter(function(p){return p.estado!=='completado'})),completados:bdTerm.concat(own.filter(function(p){return p.estado==='completado'}))};
+}
+
+function vPlan(){
+  var sets=planGetAll();
+  var all=sets.activos.concat(sets.completados);
+  var allST=getPlanAllST();
+  var totalST=all.reduce(function(a,p){var st=allST[p.id]||{};return a+(st.subtareas?st.subtareas.length:0)},0);
+  var doneST=all.reduce(function(a,p){var st=allST[p.id]||{};return a+(st.subtareas?st.subtareas.filter(function(s){return s.done}).length:0)},0);
+  document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="planNuevoModal()">+ Nuevo proyecto</button>';
+  document.getElementById('MAIN').innerHTML=
+    '<div class="g4 mb2">'+
+    '<div class="stat"><div class="stat-lbl">Total proyectos</div><div class="stat-val">'+all.length+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">Activos</div><div class="stat-val" style="color:var(--txi)">'+sets.activos.length+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">Completados</div><div class="stat-val" style="color:var(--txs)">'+sets.completados.length+'</div></div>'+
+    '<div class="stat"><div class="stat-lbl">Subtareas hechas</div><div class="stat-val" style="color:var(--txw)">'+doneST+'/'+totalST+'</div></div>'+
+    '</div>'+
+    '<div class="card mb2" style="padding:10px 14px">'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+    '<div style="position:relative;flex:1;min-width:180px"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx3)">🔍</span>'+
+    '<input id="PLAN_BUSQ" placeholder="Buscar proyecto o cliente..." class="inp" style="padding-left:30px" oninput="planFiltrar()" value="'+(_planBusq||'')+'"></div>'+
+    '<select id="PLAN_URG" class="inp" style="width:auto;flex-shrink:0" onchange="planFiltrar()">'+
+    '<option value="">Toda prioridad</option>'+
+    '<option value="sumaugencia"'+(_planUrgFil==="sumaugencia"?" selected":"")+'>Suma urgencia</option>'+
+    '<option value="urgente"'+(_planUrgFil==="urgente"?" selected":"")+'>Urgente</option>'+
+    '<option value="ejecutar"'+(_planUrgFil==="ejecutar"?" selected":"")+'>Por ejecutar</option>'+
+    '<option value="posterior"'+(_planUrgFil==="posterior"?" selected":"")+'>Posterior</option>'+
+    '</select></div></div>'+
+    '<div style="display:flex;gap:0;margin-bottom:14px;border-bottom:.5px solid var(--bd)">'+
+    ['activos','todos','completados'].map(function(t){
+      var lbl=t==='activos'?'🟣 Activos':t==='todos'?'📋 Todos':'✅ Completados';
+      var active=_planFiltro===t;
+      return '<div onclick="planTab(\''+t+'\')" id="PTAB_'+t+'" style="padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid '+(active?'var(--txi)':'transparent')+';color:'+(active?'var(--txi)':'var(--tx2)')+';transition:all .15s;white-space:nowrap">'+lbl+'</div>';
+    }).join('')+
+    '</div>'+
+    '<div id="PLAN_LISTA"></div>';
+  planRenderLista();
+}
+
+function planTab(t){
+  _planFiltro=t;
+  document.querySelectorAll('[id^=PTAB_]').forEach(function(el){
+    var isActive=el.id==='PTAB_'+t;el.style.borderBottomColor=isActive?'var(--txi)':'transparent';el.style.color=isActive?'var(--txi)':'var(--tx2)';
+  });
+  planRenderLista();
+}
+function planFiltrar(){
+  _planBusq=(document.getElementById('PLAN_BUSQ')||{}).value||'';
+  _planUrgFil=(document.getElementById('PLAN_URG')||{}).value||'';
+  planRenderLista();
+}
+
+function planRenderLista(){
+  var lista=document.getElementById('PLAN_LISTA');if(!lista)return;
+  var sets=planGetAll();
+  var base=_planFiltro==='completados'?sets.completados:_planFiltro==='todos'?sets.activos.concat(sets.completados):sets.activos;
+  var allST=getPlanAllST();
+  var fil=base.filter(function(p){
+    if(_planBusq){var q=_planBusq.toLowerCase();if((p.nombre||'').toLowerCase().indexOf(q)<0&&(p.cliente||'').toLowerCase().indexOf(q)<0)return false}
+    if(_planUrgFil&&p.urgencia!==_planUrgFil)return false;
+    return true;
+  });
+  fil.sort(function(a,b){return({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[a.urgencia]||4)-({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[b.urgencia]||4)});
+  if(fil.length===0){lista.innerHTML='<div class="empty" style="padding:40px">Sin proyectos'+(_planFiltro==='completados'?' completados':'')+'. <span style="color:var(--txi);cursor:pointer" onclick="planNuevoModal()">Crear uno</span></div>';return}
+
+  lista.innerHTML=fil.map(function(p){
+    var stData=allST[p.id]||{subtareas:[],_stVisible:true,desc:''};
+    var subtareas=stData.subtareas||[];
+    var totalST=subtareas.length;
+    var doneST=subtareas.filter(function(s){return s.done}).length;
+    var pct=totalST>0?Math.round(doneST/totalST*100):0;
+    var colBorde=p.urgencia==='sumaugencia'||p.urgencia==='urgente'?'#e24b4a':p.urgencia==='ejecutar'?'#ef9f27':p.urgencia==='paralizado'?'#888':'#c0c0c0';
+    var colEst=p.estado==='terminado'||p.estado==='completado'?'var(--txs)':p.estado==='ejecucion'?'var(--txi)':'var(--tx2)';
+    var bgEst=p.estado==='terminado'||p.estado==='completado'?'var(--bgs)':p.estado==='ejecucion'?'var(--bgi)':'var(--bg2)';
+    var lblEst=p.estado==='terminado'||p.estado==='completado'?'Completado':p.estado==='ejecucion'?'En ejecucion':'Por ejecutar';
+    var lblUrg=p.urgencia==='sumaugencia'?'Suma urgencia':p.urgencia==='urgente'?'Urgente':p.urgencia==='ejecutar'?'Por ejecutar':p.urgencia==='paralizado'?'Paralizado':'Posterior';
+    var colUrg=p.urgencia==='sumaugencia'||p.urgencia==='urgente'?'var(--bgd)':p.urgencia==='ejecutar'?'var(--bgw)':'var(--bg2)';
+    var colUrgTx=p.urgencia==='sumaugencia'||p.urgencia==='urgente'?'var(--txd)':p.urgencia==='ejecutar'?'var(--txw)':'var(--tx2)';
+    var diasStr='';
+    if(p.fechaInicio){var dd=Math.floor((Date.now()-new Date(p.fechaInicio).getTime())/86400000);if(!isNaN(dd)&&dd>=0)diasStr=dd+' dia'+(dd!==1?'s':'')+' activo';}
+    var visible=stData._stVisible!==false;
+    var descHtml=stData.desc?'<div style="margin-top:8px;padding:8px 10px;background:var(--bg2);border-radius:var(--r);font-size:13px;line-height:1.5">'+stData.desc+'</div>':'';
+    var fechaCompHtml='';
+    if(stData.fechaCompletado){var fc=new Date(stData.fechaCompletado);fechaCompHtml='<div style="font-size:11px;color:var(--txs);margin-top:4px">Completado el '+fc.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'})+'</div>';}
+    var stHtml='<div style="margin-top:10px;padding-top:8px;border-top:.5px solid var(--bd)">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
+      '<span style="font-size:12px;font-weight:600;color:var(--tx2)">SUBTAREAS ('+doneST+'/'+totalST+')</span>'+
+      '<button onclick="planToggleST(\''+p.id+'\')" style="background:none;border:.5px solid var(--bd);border-radius:var(--r);cursor:pointer;font-size:12px;color:var(--tx2);padding:2px 10px">'+
+      (visible?'▲ Ocultar':'▼ Mostrar')+'</button></div>'+
+      (visible?(totalST>0?subtareas.map(function(st,i){
+        var fst=st.fecha?'<span style="font-size:10px;color:var(--tx3);margin-left:4px">'+st.fecha+'</span>':'';
+        var fdone=st.fechaDone?'<span style="font-size:10px;color:var(--txs);margin-left:4px">Hecho '+st.fechaDone+'</span>':'';
+        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:.5px solid var(--bd)">'+
+          '<input type="checkbox"'+(st.done?' checked':'')+' onchange="planToggleCheck(\''+p.id+'\','+i+',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--txi);margin-top:2px">'+
+          '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:13px'+(st.done?';text-decoration:line-through;color:var(--tx3)':'')+'" id="STLBL_'+p.id+'_'+i+'">'+st.texto+'</div>'+
+          (st.desc?'<div style="font-size:12px;color:var(--tx2);margin-top:2px;line-height:1.4">'+st.desc+'</div>':'')+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">'+fst+fdone+'</div>'+
+          '</div>'+
+          '<span style="font-size:11px;padding:1px 7px;border-radius:10px;background:'+(st.prioridad==='alta'?'var(--bgd)':st.prioridad==='baja'?'var(--bgs)':'var(--bgw)')+';color:'+(st.prioridad==='alta'?'var(--txd)':st.prioridad==='baja'?'var(--txs)':'var(--txw)')+';flex-shrink:0">'+(st.prioridad||'media')+'</span>'+
+          '<button onclick="planEditST(\''+p.id+'\','+i+')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--tx3)">Editar</button>'+
+          '<button onclick="planDelST(\''+p.id+'\','+i+')" style="background:none;border:.5px solid var(--bdd);border-radius:4px;cursor:pointer;font-size:11px;color:var(--txd);padding:1px 6px">x</button>'+
+          '</div>';
+      }).join(''):'<div class="tsm tx2" style="padding:8px 0">Sin subtareas. Agrega una abajo.</div>'):'<div class="tsm tx2" style="padding:4px 0">Subtareas ocultas.</div>')+
+      '<button onclick="planAddST(\''+p.id+'\')" style="margin-top:8px;background:none;border:none;cursor:pointer;font-size:12px;color:var(--txi);padding:2px 0">+ Agregar subtarea</button>'+
+      '</div>';
+    return '<div id="PLANCARD_'+p.id+'" style="background:var(--bg);border:.5px solid var(--bd);border-radius:var(--R);padding:16px 18px;margin-bottom:12px;border-left:4px solid '+colBorde+'">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'+
+      '<div style="flex:1;min-width:0">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">'+
+      '<span style="width:10px;height:10px;border-radius:50%;background:'+colEst+';flex-shrink:0;display:inline-block"></span>'+
+      '<span style="font-weight:700;font-size:15px">'+(p.nombre||'Sin nombre')+'</span>'+
+      (p.codigo?'<span class="cod" style="font-size:10px">'+p.codigo+'</span>':'')+
+      (p._origen==='own'?'<span style="font-size:10px;color:var(--tx3);background:var(--bg2);padding:1px 6px;border-radius:4px">propio</span>':'')+
+      '</div>'+
+      (p.cliente?'<div style="font-size:12px;color:var(--txi);margin-bottom:5px">'+p.cliente+'</div>':'')+
+      '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">'+
+      '<span style="background:'+bgEst+';color:'+colEst+';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">'+lblEst+'</span>'+
+      (p.urgencia?'<span style="background:'+colUrg+';color:'+colUrgTx+';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">'+lblUrg+'</span>':'')+
+      (p.tipoTramite?'<span style="background:var(--bg2);color:var(--tx2);padding:2px 8px;border-radius:10px;font-size:11px">'+p.tipoTramite+'</span>':'')+
+      (diasStr?'<span style="background:var(--bg2);color:var(--tx3);padding:2px 8px;border-radius:10px;font-size:11px">'+diasStr+'</span>':'')+
+      '</div>'+fechaCompHtml+descHtml+
+      '</div>'+
+      '<div style="display:flex;gap:5px;flex-shrink:0;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end">'+
+      '<button class="btn btn-sm" onclick="planEditProyModal(\''+p.id+'\',\''+p._origen+'\')" style="font-size:12px">Editar</button>'+
+      '<button class="btn btn-sm" onclick="planAddST(\''+p.id+'\')" style="font-size:12px">+ Subtarea</button>'+
+      (p._origen==='bd'?'<button class="btn btn-sm" onclick="editProy(\''+p.id+'\')" style="font-size:12px" title="Ver en Base de datos">BD</button>':'')+
+      '</div>'+
+      '</div>'+
+      '<div style="margin-top:10px">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:3px">'+
+      '<span style="font-size:11px;color:var(--tx3)">Avance</span>'+
+      '<span style="font-size:11px;font-weight:600;color:'+(pct===100?'var(--txs)':pct>0?'var(--txw)':'var(--tx3)')+'">'+pct+'% - '+doneST+'/'+totalST+' subtareas</span>'+
+      '</div>'+
+      '<div style="height:5px;background:var(--bg3);border-radius:4px"><div style="height:100%;width:'+pct+'%;background:'+(pct===100?'var(--txs)':pct>50?'var(--txw)':'var(--txi)')+';border-radius:4px;transition:width .3s"></div></div>'+
+      '</div>'+stHtml+'</div>';
+  }).join('');
+}
+
+function planNuevoModal(){
+  var clis=rdb('clientes',[]);
+  var cliOpts='<option value="">Sin cliente / manual</option>'+clis.map(function(c){return'<option value="'+c.id+'|'+c.nombre+'">'+c.nombre+(c.rut?' - '+c.rut:'')+'</option>'}).join('');
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal" style="max-width:560px">'+
+    '<div class="mhdr"><div class="mttl">Nuevo proyecto de planificacion</div><button class="xbtn" onclick="closeMod()">x</button></div>'+
+    '<div class="fld"><label>Nombre del proyecto *</label><input id="PLN_NOM" placeholder="Ej: Casa Martinez - Permiso"></div>'+
+    '<div class="fld"><label>Cliente (desde Base de datos)</label>'+
+    '<select id="PLN_CLISEL" onchange="planSyncCli(this.value)">'+cliOpts+'</select></div>'+
+    '<div class="fld"><label>O escribe el nombre del cliente</label><input id="PLN_CLINOM" placeholder="Nombre del cliente..."></div>'+
+    '<div class="g2">'+
+    '<div class="fld"><label>Tramite / Categoria</label><input id="PLN_TRAM" placeholder="Permiso, Fusion, Ampliacion..."></div>'+
+    '<div class="fld"><label>Urgencia</label><select id="PLN_URG">'+
+    '<option value="sumaugencia">Suma urgencia</option><option value="urgente">Urgente</option>'+
+    '<option value="ejecutar" selected>Por ejecutar</option><option value="posterior">Posterior</option>'+
+    '</select></div></div>'+
+    '<div class="g2">'+
+    '<div class="fld"><label>Estado inicial</label><select id="PLN_EST">'+
+    '<option value="porEjecutar" selected>Por ejecutar</option><option value="ejecucion">En ejecucion</option>'+
+    '</select></div>'+
+    '<div class="fld"><label>Fecha de inicio</label><input type="date" id="PLN_FECHA" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+    '</div>'+
+    '<div class="fld"><label>Descripcion / Notas (con formato)</label>'+planEditorHTML('PLN_DESC','')+'</div>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px">'+
+    '<button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="planGuardarNuevo()">Crear proyecto</button>'+
+    '</div></div></div>';
+}
+function planSyncCli(val){if(!val)return;var parts=val.split('|');var inp=document.getElementById('PLN_CLINOM');if(inp)inp.value=parts[1]||''}
+function planGuardarNuevo(){
+  var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var nom=g('PLN_NOM').trim();if(!nom)return alert('El nombre es obligatorio');
+  var cliSel=g('PLN_CLISEL');var cliId=cliSel?cliSel.split('|')[0]:'';
+  var cliNom=(document.getElementById('PLN_CLINOM')||{}).value||'';
+  var desc=planGetEditorVal('PLN_DESC');
+  var p={id:'own_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),nombre:nom,clienteId:cliId,cliente:cliNom,tipoTramite:g('PLN_TRAM'),urgencia:g('PLN_URG')||'ejecutar',estado:g('PLN_EST')||'porEjecutar',fechaInicio:g('PLN_FECHA'),_origen:'own'};
+  var arr=getPlanOwn();arr.push(p);savePlanOwn(arr);
+  var stData=getPlanST(p.id);stData.desc=desc;savePlanST(p.id,stData);
+  closeMod();vPlan();
+}
+function planEditProyModal(id,origen){
+  var p=null;
+  if(origen==='own')p=getPlanOwn().find(function(x){return x.id===id});
+  else p=rdb('proyectos',[]).find(function(x){return x.id===id});
+  if(!p)return;
+  var stData=getPlanST(id);
+  var clis=rdb('clientes',[]);
+  var cliOpts='<option value="">Sin cliente</option>'+clis.map(function(c){return'<option value="'+c.id+'|'+c.nombre+'"'+(p.clienteId===c.id?' selected':'')+'>'+c.nombre+(c.rut?' - '+c.rut:'')+'</option>'}).join('');
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal" style="max-width:580px">'+
+    '<div class="mhdr"><div class="mttl">Editar proyecto de planificacion</div><button class="xbtn" onclick="closeMod()">x</button></div>'+
+    (origen==='own'?
+      '<div class="fld"><label>Nombre *</label><input id="PLE_NOM" value="'+(p.nombre||'')+'"></div>'+
+      '<div class="fld"><label>Cliente (desde Base de datos)</label><select id="PLE_CLISEL" onchange="planSyncCliEdit(this.value)">'+cliOpts+'</select></div>'+
+      '<div class="fld"><label>O nombre manual</label><input id="PLE_CLINOM" value="'+(p.cliente||'')+'"></div>'+
+      '<div class="g2"><div class="fld"><label>Tramite</label><input id="PLE_TRAM" value="'+(p.tipoTramite||'')+'"></div>'+
+      '<div class="fld"><label>Urgencia</label><select id="PLE_URG">'+
+      ['sumaugencia','urgente','ejecutar','posterior'].map(function(u){return'<option value="'+u+'"'+(p.urgencia===u?' selected':'')+'>'+{sumaugencia:'Suma urgencia',urgente:'Urgente',ejecutar:'Por ejecutar',posterior:'Posterior'}[u]+'</option>'}).join('')+
+      '</select></div></div>'+
+      '<div class="g2"><div class="fld"><label>Estado</label><select id="PLE_EST">'+
+      ['porEjecutar','ejecucion','completado'].map(function(e){return'<option value="'+e+'"'+(p.estado===e?' selected':'')+'>'+{porEjecutar:'Por ejecutar',ejecucion:'En ejecucion',completado:'Completado'}[e]+'</option>'}).join('')+
+      '</select></div><div class="fld"><label>Fecha inicio</label><input type="date" id="PLE_FECHA" value="'+(p.fechaInicio||'')+'"></div></div>'
+    :'<div style="background:var(--bgi);padding:8px 12px;border-radius:var(--r);font-size:12px;color:var(--txi);margin-bottom:12px">Proyecto de la Base de datos. Datos generales se editan desde la BD. Aqui solo editas descripcion y estado de planificacion.</div>'+
+      '<div class="fld"><label>Estado (Planificacion)</label><select id="PLE_EST">'+
+      ['porEjecutar','ejecucion','completado'].map(function(e){return'<option value="'+e+'"'+(p.estado===e?' selected':'')+'>'+{porEjecutar:'Por ejecutar',ejecucion:'En ejecucion',completado:'Completado'}[e]+'</option>'}).join('')+
+      '</select></div>')+
+    '<div class="fld"><label>Descripcion / Notas (con formato)</label>'+planEditorHTML('PLE_DESC',stData.desc||'')+'</div>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    (origen==='own'?'<button class="btn btn-sm btn-d" onclick="planEliminarOwn(\''+id+'\')">Eliminar</button>':'<div></div>')+
+    '<div style="display:flex;gap:8px"><button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="planGuardarEdit(\''+id+'\',\''+origen+'\')">Guardar</button>'+
+    '</div></div></div></div>';
+}
+function planSyncCliEdit(val){if(!val)return;var parts=val.split('|');var inp=document.getElementById('PLE_CLINOM');if(inp)inp.value=parts[1]||''}
+function planGuardarEdit(id,origen){
+  var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var desc=planGetEditorVal('PLE_DESC');
+  var nuevoEst=g('PLE_EST');
+  var stData=getPlanST(id);stData.desc=desc;
+  if(nuevoEst==='completado'&&!stData.fechaCompletado)stData.fechaCompletado=Date.now();
+  if(nuevoEst!=='completado')stData.fechaCompletado=null;
+  savePlanST(id,stData);
+  if(origen==='own'){
+    var arr=getPlanOwn();var idx=arr.findIndex(function(x){return x.id===id});
+    if(idx>=0){
+      var cliSel=g('PLE_CLISEL');
+      arr[idx].nombre=g('PLE_NOM')||arr[idx].nombre;
+      arr[idx].clienteId=cliSel?cliSel.split('|')[0]:'';
+      arr[idx].cliente=(document.getElementById('PLE_CLINOM')||{}).value||arr[idx].cliente;
+      arr[idx].tipoTramite=g('PLE_TRAM');arr[idx].urgencia=g('PLE_URG')||arr[idx].urgencia;
+      arr[idx].estado=nuevoEst||arr[idx].estado;arr[idx].fechaInicio=g('PLE_FECHA')||arr[idx].fechaInicio;
+      savePlanOwn(arr);
+    }
+  } else {
+    if(nuevoEst==='completado'){var ps=rdb('proyectos',[]);var idx=ps.findIndex(function(x){return x.id===id});if(idx>=0){ps[idx].estado='terminado';wdb('proyectos',ps);}}
+  }
+  closeMod();vPlan();
+}
+function planEliminarOwn(id){
+  if(!confirm('Eliminar este proyecto de planificacion?'))return;
+  savePlanOwn(getPlanOwn().filter(function(p){return p.id!==id}));closeMod();vPlan();
+}
+function planEditorHTML(id,val){
+  var btn=function(cmd,label,style){
+    return '<button type="button" onmousedown="event.preventDefault();presCmd(\''+id+'\',\''+cmd+'\')" style="background:none;border:.5px solid var(--bd);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;'+(style||'')+'">'+label+'</button>';
+  };
+  return '<div style="border:.5px solid var(--bd2);border-radius:var(--r);overflow:hidden">'+
+    '<div style="display:flex;gap:2px;padding:4px 6px;background:var(--bg2);border-bottom:.5px solid var(--bd);flex-wrap:wrap">'+
+    btn('bold','B','font-weight:700')+
+    btn('italic','I','font-style:italic')+
+    btn('underline','U','text-decoration:underline')+
+    btn('insertUnorderedList','• Lista','')+
+    btn('insertOrderedList','1. Núm.','')+
+    '<button type="button" onmousedown="event.preventDefault();var e=document.getElementById(\''+id+'\');if(e){e.innerHTML=\'\';e.focus()}" style="background:none;border:.5px solid var(--bdd);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px;color:var(--txd)">✕</button>'+
+    '</div>'+
+    '<div id="'+id+'" contenteditable="true" style="min-height:80px;padding:8px 10px;font-size:13px;outline:none;background:var(--bg);line-height:1.6">'+( val||'')+'</div>'+
+    '</div>';
+}
+function planGetEditorVal(id){var el=document.getElementById(id);return el?el.innerHTML.trim():''}
+
+function planToggleST(id){
+  var stData=getPlanST(id);stData._stVisible=stData._stVisible===false?true:false;
+  savePlanST(id,stData);planRenderLista();
+}
+function planToggleCheck(id,i,val){
+  var stData=getPlanST(id);
+  if(stData.subtareas&&stData.subtareas[i]){
+    stData.subtareas[i].done=val;
+    if(val)stData.subtareas[i].fechaDone=new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});
+    else delete stData.subtareas[i].fechaDone;
+  }
+  savePlanST(id,stData);
+  var lbl=document.getElementById('STLBL_'+id+'_'+i);
+  if(lbl){lbl.style.textDecoration=val?'line-through':'';lbl.style.color=val?'var(--tx3)':''}
+  planRenderLista();
+}
+function planAddST(id){
+  var hoy=new Date().toISOString().slice(0,10);
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal" style="max-width:500px">'+
+    '<div class="mhdr"><div class="mttl">Nueva subtarea</div><button class="xbtn" onclick="closeMod()">x</button></div>'+
+    '<div class="fld"><label>Descripcion *</label><input id="ST_TXT" placeholder="Ej: Solicitar escritura, Entregar planos..."></div>'+
+    '<div class="fld"><label>Detalle / Notas (con formato)</label>'+planEditorHTML('ST_DESC','')+'</div>'+
+    '<div class="g2">'+
+    '<div class="fld"><label>Fecha</label><input type="date" id="ST_FECHA" value="'+hoy+'"></div>'+
+    '<div class="fld"><label>Prioridad</label><select id="ST_PRIOR"><option value="alta">Alta</option><option value="media" selected>Media</option><option value="baja">Baja</option></select></div>'+
+    '</div>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px">'+
+    '<button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="planGuardarST(\''+id+'\',null)">Agregar</button>'+
+    '</div></div></div>';
+  setTimeout(function(){var el=document.getElementById('ST_TXT');if(el)el.focus()},50);
+}
+function planEditST(id,i){
+  var stData=getPlanST(id);var st=(stData.subtareas||[])[i];if(!st)return;
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal" style="max-width:500px">'+
+    '<div class="mhdr"><div class="mttl">Editar subtarea</div><button class="xbtn" onclick="closeMod()">x</button></div>'+
+    '<div class="fld"><label>Descripcion *</label><input id="ST_TXT" value="'+(st.texto||'')+'"></div>'+
+    '<div class="fld"><label>Detalle / Notas (con formato)</label>'+planEditorHTML('ST_DESC',st.desc||'')+'</div>'+
+    '<div class="g2">'+
+    '<div class="fld"><label>Fecha</label><input type="date" id="ST_FECHA" value="'+(st.fechaRaw||'')+'"></div>'+
+    '<div class="fld"><label>Prioridad</label><select id="ST_PRIOR">'+
+    '<option value="alta"'+(st.prioridad==='alta'?' selected':'')+'>Alta</option>'+
+    '<option value="media"'+(st.prioridad==='media'?' selected':'')+'>Media</option>'+
+    '<option value="baja"'+(st.prioridad==='baja'?' selected':'')+'>Baja</option>'+
+    '</select></div></div>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px">'+
+    '<button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="planGuardarST(\''+id+'\','+i+')">Guardar</button>'+
+    '</div></div></div>';
+}
+function planGuardarST(id,idx){
+  var txt=(document.getElementById('ST_TXT')||{}).value||'';if(!txt.trim())return alert('Escribe la descripcion');
+  var prior=(document.getElementById('ST_PRIOR')||{}).value||'media';
+  var fechaRaw=(document.getElementById('ST_FECHA')||{}).value||'';
+  var desc=planGetEditorVal('ST_DESC');
+  var stData=getPlanST(id);if(!stData.subtareas)stData.subtareas=[];
+  var fechaFmt=fechaRaw?new Date(fechaRaw+'T12:00:00').toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+  if(idx===null)stData.subtareas.push({texto:txt.trim(),prioridad:prior,fecha:fechaFmt,fechaRaw:fechaRaw,desc:desc,done:false});
+  else{var old=stData.subtareas[idx];stData.subtareas[idx]=Object.assign({},old,{texto:txt.trim(),prioridad:prior,fecha:fechaFmt,fechaRaw:fechaRaw,desc:desc});}
+  savePlanST(id,stData);closeMod();planRenderLista();
+}
+function planDelST(id,i){
+  if(!confirm('Eliminar esta subtarea?'))return;
+  var stData=getPlanST(id);stData.subtareas.splice(i,1);savePlanST(id,stData);planRenderLista();
 }
 
 // ══════════════════════════════════════
@@ -497,17 +866,28 @@ function renderTabla(){
   var sorted=[].concat(ps).sort(function(a,b){return ({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[a.urgencia]||4)-({sumaugencia:0,urgente:1,ejecutar:2,paralizado:3,posterior:4}[b.urgencia]||4)});
   if(fu)sorted=sorted.filter(function(p){return p.urgencia===fu});
   if(fe)sorted=sorted.filter(function(p){return p.estado===fe});
-  var rows=sorted.length===0?'<tr><td colspan="9"><div class="empty">Sin proyectos</div></td></tr>':
+  var rows=sorted.length===0?'<tr><td colspan="10"><div class="empty">Sin proyectos</div></td></tr>':
     sorted.map(function(p){
       var uc=p.urgencia==='sumaugencia'?'urgente':p.urgencia==='urgente'?'urgente':p.urgencia==='ejecutar'?'ejecutar':p.urgencia==='paralizado'?'paralizado':'posterior';
       var tc=p.urgencia==='urgente'?'urg':p.urgencia==='ejecutar'?'eje':p.urgencia==='paralizado'?'pos':'pos';
+      // Estado badge clickeable con mini-selector inline
+      var estBadge='<div style="position:relative;display:inline-block" id="ESTW_'+p.id+'">'+
+        '<span class="badge b-'+(p.estado||'porEjecutar')+'" style="cursor:pointer" title="Clic para cambiar estado" onclick="toggleEstMenu(\''+p.id+'\',event)">'+stEst(p.estado)+' ▾</span>'+
+        '<div id="ESTM_'+p.id+'" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg);border:.5px solid var(--bd2);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.18);z-index:500;min-width:140px;overflow:hidden">'+
+        ['porEjecutar','ejecucion','terminado'].map(function(est){
+          var active=p.estado===est;
+          return '<div onclick="cambiarEstado(\''+p.id+'\',\''+est+'\')" style="padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;'+(active?'background:var(--bg2);':'')+'display:flex;align-items:center;gap:6px" onmouseover="this.style.background=\'var(--bg2)\'" onmouseout="this.style.background=\''+(active?'var(--bg2)':'')+'\'">'+
+          '<span class="badge b-'+est+'" style="pointer-events:none">'+stEst(est)+'</span>'+(active?' ✓':'')+
+          '</div>';
+        }).join('')+
+        '</div></div>';
       return '<tr class="'+tc+'">'+
         '<td><span class="badge b-'+uc+'">'+stUrg(p.urgencia)+'</span></td>'+
         '<td class="cod" onclick="copyCod(\''+(p.codigo||'')+'\')"><span title="Clic para copiar">'+(p.codigo||'—')+'</span></td>'+
         '<td style="font-weight:600;cursor:pointer" onclick="editProy(\''+p.id+'\')">'+(p.nombre||'—')+'</td>'+
         '<td>'+(p.cliente||'—')+'</td>'+
         '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.tipoTramite||'—')+'</td>'+
-        '<td><span class="badge b-'+(p.estado||'porEjecutar')+'">'+stEst(p.estado)+'</span></td>'+
+        '<td>'+estBadge+'</td>'+
         '<td><span class="badge b-'+(p.estadoPago||'pendiente')+'">'+stPago(p.estadoPago)+'</span></td>'+
         '<td>$'+fmt(p.totalHonorarios)+'</td>'+
         '<td>'+cloudBadge(p)+'</td>'+
@@ -518,6 +898,44 @@ function renderTabla(){
   document.getElementById('TABLA').innerHTML='<div class="twrap"><table>'+
     '<thead><tr><th>Prioridad</th><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Trámite</th><th>Estado</th><th>Pago</th><th>Honorarios</th><th>Carpeta</th><th>Acciones</th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
+  // Close dropdowns when clicking outside
+  document.addEventListener('click',_closeEstMenus,{once:true});
+}
+function _closeEstMenus(){
+  document.querySelectorAll('[id^=ESTM_]').forEach(function(m){m.style.display='none'});
+}
+function toggleEstMenu(id,e){
+  e.stopPropagation();
+  // Close all others first
+  document.querySelectorAll('[id^=ESTM_]').forEach(function(m){if(m.id!=='ESTM_'+id)m.style.display='none'});
+  var m=document.getElementById('ESTM_'+id);
+  if(!m)return;
+  var isOpen=m.style.display!=='none';
+  m.style.display=isOpen?'none':'block';
+  if(!isOpen){
+    // Close on next outside click
+    setTimeout(function(){document.addEventListener('click',_closeEstMenus,{once:true})},0);
+  }
+}
+function cambiarEstado(id,nuevoEstado){
+  var ps=rdb('proyectos',[]);
+  var idx=ps.findIndex(function(x){return x.id===id});
+  if(idx<0)return;
+  var estadoAnterior=ps[idx].estado;
+  ps[idx].estado=nuevoEstado;
+  wdb('proyectos',ps);
+  // Si cambió a terminado, mostrar notificación y ofrecer ir al historial
+  if(nuevoEstado==='terminado'&&estadoAnterior!=='terminado'){
+    renderTabla();
+    // Pequeño toast
+    var toast=document.createElement('div');
+    toast.innerHTML='✅ <strong>'+(ps[idx].nombre||'Proyecto')+'</strong> marcado como Terminado. <span style="color:var(--txi);cursor:pointer;text-decoration:underline" onclick="go(\'historial\')">Ver en Historial</span>';
+    toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg);border:.5px solid var(--bds);border-radius:var(--R);padding:12px 20px;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:9999;font-size:13px;color:var(--txs);white-space:nowrap';
+    document.body.appendChild(toast);
+    setTimeout(function(){if(toast.parentNode)toast.parentNode.removeChild(toast)},5000);
+  } else {
+    renderTabla();
+  }
 }
 function delProy(id){
   if(!confirm('¿Eliminar este proyecto?'))return;
@@ -1135,8 +1553,35 @@ function allChkInf(v){document.querySelectorAll('[id^=IC]').forEach(function(cb)
 
 // ── PDF helpers ──
 function pdfCSS(){return'<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;padding:32px;color:#222;font-size:13px;max-width:850px;margin:auto}.cab{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px}.cbl{display:flex;flex-direction:column;gap:3px}.li{max-height:50px;max-width:160px;object-fit:contain;margin-bottom:6px}.en{font-size:16px;font-weight:bold}.cbr{text-align:right}.ti{font-size:18px;font-weight:bold;margin-bottom:6px}.su{font-size:12px;color:#555;margin:1px 0}.sp{border:none;border-top:2px solid #222;margin:16px 0}.sh{font-size:14px;font-weight:bold;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd}table{width:100%;border-collapse:collapse;margin:10px 0}th{background:#f0f0f0;padding:7px 10px;text-align:left;font-size:11px;border-bottom:2px solid #ddd;text-transform:uppercase}td{padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;vertical-align:top}.bg{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold}.bu{background:#fcebeb;color:#a32d2d}.be{background:#faeeda;color:#854f0b}.bt{background:#eaf3de;color:#3b6d11}.bej{background:#e6f1fb;color:#185fa5}.bp{background:#fcebeb;color:#a32d2d}.bpa{background:#eaf3de;color:#3b6d11}.bc{background:#faeeda;color:#854f0b}.bpo{background:#f5f5f0;color:#5f5e5a}.ci{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #eee}.cb{width:14px;height:14px;border:1.5px solid #888;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px}.cbd{background:#3b6d11;border-color:#3b6d11;color:white}.cm{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:13px}.cl{color:#555;min-width:140px;font-size:12px}.fa{margin-top:60px;display:flex;justify-content:flex-end}.fl{border-top:1px solid #333;min-width:220px;padding-top:6px;font-size:12px;text-align:center}.co{font-family:monospace;font-size:11px;background:#f5f5f0;padding:2px 6px;border-radius:4px}@media print{body{padding:16px}}</style>'}
-function pdfCab(cfg,titulo,proy,cli){var logo=localStorage.getItem('arq_logo')||'';var fecha=new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});return'<div class="cab"><div class="cbl">'+(logo?'<img src="'+logo+'" class="li">':'')+'<div class="en">'+(cfg.empresa||'Estudio de Arquitectura')+'</div>'+(cfg.arquitecto?'<div class="su">'+cfg.arquitecto+'</div>':'')+(cfg.email?'<div class="su">'+cfg.email+'</div>':'')+(cfg.telefono?'<div class="su">Tel: '+cfg.telefono+'</div>':'')+'</div><div class="cbr"><div class="ti">'+titulo+'</div><div class="su">Fecha: '+fecha+'</div>'+(proy?'<div class="su">Proyecto: <strong>'+proy+'</strong></div>':'')+(cli?'<div class="su">Cliente: <strong>'+cli+'</strong></div>':'')+'</div></div><hr class="sp">'}
-function pdfPie(cfg){return'<div class="fa"><div class="fl">'+(cfg.arquitecto||'Arquitecto')+'<br><span style="color:#888;font-size:11px">'+(cfg.email||'')+'</span></div></div>'}
+function pdfCab(cfg,titulo,proy,cli,prof){
+  var logo=localStorage.getItem('arq_logo')||'';
+  var fecha=new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit',year:'numeric'});
+  // El membrete muestra: empresa + nombre prof + email prof + teléfono prof
+  var email=prof?prof.email:'';
+  var tel=prof?prof.telefono:'';
+  return '<div class="cab"><div class="cbl">'+
+    (logo?'<img src="'+logo+'" class="li">':'')+
+    '<div class="en">'+(cfg.empresa||'Estudio de Arquitectura')+'</div>'+
+    (prof?'<div class="su">'+prof.nombre+'</div>':'')+
+    (email?'<div class="su">'+email+'</div>':'')+
+    (tel?'<div class="su">Tel: '+tel+'</div>':'')+
+    '</div><div class="cbr">'+
+    '<div class="ti">'+titulo+'</div>'+
+    '<div class="su">Fecha: '+fecha+'</div>'+
+    (proy?'<div class="su">Proyecto: <strong>'+proy+'</strong></div>':'')+
+    (cli?'<div class="su">Cliente: <strong>'+cli+'</strong></div>':'')+
+    '</div></div><hr class="sp">';
+}
+function pdfPie(cfg,prof){
+  // prof puede venir como parámetro o tomamos el primero de la lista
+  var p=prof||(getProfesionales()[0]||null);
+  if(!p)return '';
+  return '<div style="margin-top:80px;display:flex;justify-content:flex-end">'+
+    '<div style="border-top:1px solid #333;min-width:220px;padding-top:6px;font-size:12px;text-align:center">'+
+    p.nombre+'<br>'+
+    '<span style="color:#555;font-size:11px">'+(p.profesion||'Arquitecto')+'</span>'+
+    '</div></div>';
+}
 function abrirPDF(body){var w=window.open('','_blank');w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8">'+pdfCSS()+'</head><body>'+body+'<scr'+'ipt>window.onload=function(){window.print()}<'+'/scr'+'ipt></body></html>');w.document.close()}
 
 function pdfProy(){
@@ -1146,7 +1591,8 @@ function pdfProy(){
   var cl=clis.find(function(x){return x.id===p.clienteId})||{};
   var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
   var g=function(i){return((document.getElementById(i)||{}).checked)};
-  var body=pdfCab(cfg,'Ficha de Proyecto',p.nombre,p.cliente);
+  var profPie=getProfesionales()[0]||null;
+  var body=pdfCab(cfg,'Ficha de Proyecto',p.nombre,p.cliente,profPie);
   if(g('IS_gen'))body+='<div class="sh">Datos generales</div><div class="cm"><span class="cl">Código:</span><span class="co">'+(p.codigo||'—')+'</span></div><div class="cm"><span class="cl">Nombre:</span>'+(p.nombre||'—')+'</div><div class="cm"><span class="cl">Trámite:</span>'+(p.tipoTramite||'—')+'</div><div class="cm"><span class="cl">Prioridad:</span><span class="bg b'+(p.urgencia||'po').slice(0,2)+'">'+stUrg(p.urgencia)+'</span></div><div class="cm"><span class="cl">Estado:</span><span class="bg b'+(p.estado==='ejecucion'?'ej':p.estado==='terminado'?'t':'po')+'">'+stEst(p.estado)+'</span></div><div class="cm"><span class="cl">Proceso:</span>'+(p.proceso||'—')+'</div><div class="cm"><span class="cl">Rol propiedad:</span>'+(p.rol||p.rolProp||'—')+'</div><div class="cm"><span class="cl">Fecha inicio:</span>'+(p.fechaInicio||'—')+'</div>'+(p.observaciones?'<div class="cm"><span class="cl">Observaciones:</span>'+p.observaciones+'</div>':'');
   if(g('IS_cli')&&cl.nombre)body+='<div class="sh">Datos del cliente</div><div class="cm"><span class="cl">Nombre:</span>'+(cl.nombre||'—')+'</div><div class="cm"><span class="cl">RUT:</span>'+(cl.rut||'—')+'</div><div class="cm"><span class="cl">Teléfono:</span>'+(cl.telefono||'—')+'</div><div class="cm"><span class="cl">Email:</span>'+(cl.email||'—')+'</div><div class="cm"><span class="cl">Dirección:</span>'+(cl.direccion||'—')+'</div>';
   if(g('IS_prop'))body+='<div class="sh">Datos de la propiedad</div><div class="cm"><span class="cl">Dirección:</span>'+(p.direccionProp||'—')+'</div><div class="cm"><span class="cl">Rol:</span>'+(p.rolProp||'—')+'</div><div class="cm"><span class="cl">Escritura:</span>Fojas '+(p.fojas||'—')+', N° '+(p.numEscritura||'—')+', Año '+(p.anioEscritura||'—')+'</div><div class="cm"><span class="cl">Superficie:</span>'+(p.supPredio||'—')+' m²</div><div class="cm"><span class="cl">D. Norte:</span>'+(p.dNorte||'—')+'</div><div class="cm"><span class="cl">D. Sur:</span>'+(p.dSur||'—')+'</div><div class="cm"><span class="cl">D. Este:</span>'+(p.dEste||'—')+'</div><div class="cm"><span class="cl">D. Oeste:</span>'+(p.dOeste||'—')+'</div>'+(p.utmNorte?'<div class="cm"><span class="cl">UTM Norte:</span>'+p.utmNorte+'</div>':'')+(p.utmEste?'<div class="cm"><span class="cl">UTM Este:</span>'+p.utmEste+'</div>':'');
@@ -1154,7 +1600,7 @@ function pdfProy(){
   if(g('IS_chk')&&p.checklist&&p.checklist.length){body+='<div class="sh">Checklist</div>';p.checklist.forEach(function(item){body+='<div class="ci"><div class="cb'+(item.checked?' cbd':'')+'">'+( item.checked?'✓':'')+'</div><span style="flex:1">'+item.texto+'</span>'+(item.checked?'<span class="bg bt">Entregado</span>':'<span class="bg bp">Pendiente</span>')+'</div>'})}
   if(g('IS_car'))body+='<div class="sh">Características</div>'+(p.descProyecto?'<div class="cm"><span class="cl">Descripción:</span>'+p.descProyecto+'</div>':'')+(p.m2?'<div class="cm"><span class="cl">Superficie:</span>'+p.m2+' m²</div>':'')+(p.materialidad?'<div class="cm"><span class="cl">Materialidad:</span>'+p.materialidad+'</div>':'');
   if(g('IS_bit')&&p.bitacora&&p.bitacora.length){body+='<div class="sh">Bitácora</div>';p.bitacora.forEach(function(b){body+='<div style="padding:8px 0;border-bottom:1px solid #eee"><div style="font-size:11px;color:#888;margin-bottom:3px">'+b.fecha+'</div><div>'+b.texto+'</div></div>'})}
-  body+=pdfPie(cfg);abrirPDF(body);
+  body+=pdfPie(cfg,profPie);abrirPDF(body);
 }
 function pdfChk(){
   var pid=(document.getElementById('IPC')||{}).value;if(!pid)return alert('Selecciona un proyecto');
@@ -1162,30 +1608,33 @@ function pdfChk(){
   var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
   var cbs=document.querySelectorAll('[id^=IC]');
   var sel=[];cbs.forEach(function(cb,i){if(cb.checked&&p.checklist[i])sel.push(p.checklist[i])});
-  var body=pdfCab(cfg,'Documentación requerida',p.nombre,p.cliente);
+  var profPie=getProfesionales()[0]||null;
+  var body=pdfCab(cfg,'Documentación requerida',p.nombre,p.cliente,profPie);
   body+='<p style="margin-bottom:16px">Estimado/a <strong>'+(p.cliente||'propietario')+'</strong>, le solicitamos reunir y entregar los siguientes documentos:</p>';
   sel.forEach(function(item){body+='<div class="ci"><div class="cb'+(item.checked?' cbd':'')+'">'+( item.checked?'✓':'')+'</div><span style="flex:1">'+item.texto+'</span><span style="font-size:11px;color:#888">'+(item.checked?'Entregado':'Pendiente')+'</span></div>'});
   body+='<div style="margin-top:24px;font-size:12px;color:#666">Consultas: '+(cfg.arquitecto||'el arquitecto')+(cfg.telefono?' · '+cfg.telefono:'')+'</div>';
-  body+=pdfPie(cfg);abrirPDF(body);
+  body+=pdfPie(cfg,profPie);abrirPDF(body);
 }
 function pdfUrg(){
   var ps=rdb('proyectos',[]);var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
   var iu=(document.getElementById('IU_u')||{}).checked;var ie=(document.getElementById('IU_e')||{}).checked;
   var fil=ps.filter(function(p){return(iu&&p.urgencia==='urgente')||(ie&&p.urgencia==='ejecutar')});
   fil.sort(function(a,b){return({urgente:0,ejecutar:1}[a.urgencia]||1)-({urgente:0,ejecutar:1}[b.urgencia]||1)});
-  var body=pdfCab(cfg,'Proyectos urgentes','','');
+  var profPie=getProfesionales()[0]||null;
+  var body=pdfCab(cfg,'Proyectos urgentes','','',profPie);
   body+='<table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Trámite</th><th>Prioridad</th><th>Estado</th></tr></thead><tbody>';
   fil.forEach(function(p){body+='<tr><td class="co">'+(p.codigo||'—')+'</td><td><strong>'+(p.nombre||'—')+'</strong></td><td>'+(p.cliente||'—')+'</td><td>'+(p.tipoTramite||'—')+'</td><td><span class="bg '+(p.urgencia==='urgente'?'bu':'be')+'">'+stUrg(p.urgencia)+'</span></td><td><span class="bg '+(p.estado==='ejecucion'?'bej':p.estado==='terminado'?'bt':'bpo')+'">'+stEst(p.estado)+'</span></td></tr>'});
-  body+='</tbody></table>'+pdfPie(cfg);abrirPDF(body);
+  body+='</tbody></table>'+pdfPie(cfg,profPie);abrirPDF(body);
 }
 function pdfEst(){
   var ps=rdb('proyectos',[]);var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
   var iej=(document.getElementById('IE_ej')||{}).checked;var ipe=(document.getElementById('IE_pe')||{}).checked;var ite=(document.getElementById('IE_te')||{}).checked;
   var fil=ps.filter(function(p){return(iej&&p.estado==='ejecucion')||(ipe&&(p.estado==='porEjecutar'||!p.estado))||(ite&&p.estado==='terminado')});
-  var body=pdfCab(cfg,'Estado de proyectos','','');
+  var profPie=getProfesionales()[0]||null;
+  var body=pdfCab(cfg,'Estado de proyectos','','',profPie);
   body+='<table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Trámite</th><th>Proceso</th><th>Estado</th><th>Pago</th></tr></thead><tbody>';
   fil.forEach(function(p){body+='<tr><td class="co">'+(p.codigo||'—')+'</td><td><strong>'+(p.nombre||'—')+'</strong></td><td>'+(p.cliente||'—')+'</td><td>'+(p.tipoTramite||'—')+'</td><td>'+(p.proceso||'—')+'</td><td><span class="bg '+(p.estado==='ejecucion'?'bej':p.estado==='terminado'?'bt':'bpo')+'">'+stEst(p.estado)+'</span></td><td><span class="bg '+(p.estadoPago==='pagado'?'bpa':p.estadoPago==='cuotas'?'bc':'bp')+'">'+stPago(p.estadoPago)+'</span></td></tr>'});
-  body+='</tbody></table>'+pdfPie(cfg);abrirPDF(body);
+  body+='</tbody></table>'+pdfPie(cfg,profPie);abrirPDF(body);
 }
 function pdfFin(){
   var ps=rdb('proyectos',[]);var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
@@ -1193,11 +1642,12 @@ function pdfFin(){
   var fil=ps.filter(function(p){return p.totalHonorarios&&((ip&&p.estadoPago==='pendiente')||(ic&&p.estadoPago==='cuotas')||(ipa&&p.estadoPago==='pagado'))});
   var tot=fil.reduce(function(a,p){return a+parseFloat(p.totalHonorarios||0)},0);
   var pen=fil.filter(function(p){return p.estadoPago==='pendiente'}).reduce(function(a,p){return a+parseFloat(p.saldo||p.totalHonorarios||0)},0);
-  var body=pdfCab(cfg,'Informe financiero','','');
+  var profPie=getProfesionales()[0]||null;
+  var body=pdfCab(cfg,'Informe financiero','','',profPie);
   body+='<div style="display:flex;gap:40px;margin-bottom:20px"><div><div style="color:#888;font-size:11px">Total</div><div style="font-size:20px;font-weight:bold">$'+fmt(tot)+'</div></div><div><div style="color:#888;font-size:11px">Saldo pendiente</div><div style="font-size:20px;font-weight:bold;color:#a32d2d">$'+fmt(pen)+'</div></div></div>';
   body+='<table><thead><tr><th>Código</th><th>Proyecto</th><th>Cliente</th><th>Total</th><th>Adelanto</th><th>Saldo</th><th>Estado</th></tr></thead><tbody>';
   fil.forEach(function(p){body+='<tr><td class="co">'+(p.codigo||'—')+'</td><td><strong>'+(p.nombre||'—')+'</strong></td><td>'+(p.cliente||'—')+'</td><td>$'+fmt(p.totalHonorarios)+'</td><td>$'+fmt(p.adelanto)+'</td><td>$'+fmt(p.saldo)+'</td><td><span class="bg '+(p.estadoPago==='pagado'?'bpa':p.estadoPago==='cuotas'?'bc':'bp')+'">'+stPago(p.estadoPago)+'</span></td></tr>'});
-  body+='</tbody></table>'+pdfPie(cfg);abrirPDF(body);
+  body+='</tbody></table>'+pdfPie(cfg,profPie);abrirPDF(body);
 }
 
 // ══════════════════════════════════════
@@ -1211,67 +1661,409 @@ function vPres(){
   document.getElementById('MAIN').innerHTML='<div class="card"><div class="twrap"><table><thead><tr><th>N°</th><th>Cliente</th><th>Descripción</th><th>Total neto</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function delPres(id){if(!confirm('¿Eliminar?'))return;wdb('presupuestos',rdb('presupuestos',[]).filter(function(p){return p.id!==id}));vPres()}
+// ── Formato cifra chilena ──
+function fmtCLP(val){
+  var n=parseInt((val||'').toString().replace(/\./g,'').replace(/[^\d]/g,''))||0;
+  return n===0?'':n.toLocaleString('es-CL');
+}
+function parseCLP(val){return parseInt((val||'').toString().replace(/\./g,'').replace(/[^\d]/g,''))||0}
+function presFormatInput(el){
+  var raw=parseCLP(el.value);
+  el.value=raw===0?'':raw.toLocaleString('es-CL');
+}
+function presCalcRow(i){
+  var qty=parseFloat((document.getElementById('PIQTY'+i)||{}).value||0);
+  var uv=parseCLP((document.getElementById('PIUV'+i)||{}).value||'');
+  var total=qty>0&&uv>0?qty*uv:uv;
+  var tot=document.getElementById('PITOT'+i);
+  if(tot)tot.textContent='$'+(total>0?total.toLocaleString('es-CL'):'0');
+  if(tot)tot.dataset.val=total;
+}
+function buildItemRow(i,it){
+  it=it||{};
+  var tipo=it.tipo||'simple'; // 'simple' | 'unitario'
+  var uv=it.uv>0?it.uv.toLocaleString('es-CL'):'';
+  var qty=it.qty||'';
+  var unidad=it.unidad||'';
+  var val=it.valor>0?it.valor.toLocaleString('es-CL'):'';
+  return '<div class="pres-row" data-idx="'+i+'" style="background:var(--bg2);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;border:.5px solid var(--bd)">'+
+    // Fila 1: descripción + tipo + eliminar
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
+    '<input placeholder="Descripción del ítem" class="inp f1" id="PID'+i+'" value="'+(it.desc||'')+'">'+
+    '<select id="PITP'+i+'" onchange="presToggleTipo('+i+')" class="inp" style="width:120px;flex-shrink:0">'+
+    '<option value="simple"'+(tipo==='simple'?' selected':'')+'>Valor fijo</option>'+
+    '<option value="unitario"'+(tipo==='unitario'?' selected':'')+'>Por unidad</option>'+
+    '</select>'+
+    '<button class="btn btn-sm btn-d" onclick="this.closest(\'.pres-row\').remove();presRecalcTotal()" style="flex-shrink:0">×</button>'+
+    '</div>'+
+    // Fila 2 SIMPLE: solo valor
+    '<div id="PIROW_S'+i+'" style="display:flex;gap:6px;align-items:center'+(tipo==='unitario'?';display:none':'')+'">'+
+    '<span style="font-size:12px;color:var(--tx2);flex-shrink:0">$</span>'+
+    '<input id="PIV'+i+'" class="inp f1" placeholder="0" value="'+val+'" oninput="presFormatInput(this);presRecalcTotal()" style="text-align:right" inputmode="numeric">'+
+    '</div>'+
+    // Fila 2 UNITARIO: unidad + valor unitario + cantidad + = total
+    '<div id="PIROW_U'+i+'" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap'+(tipo==='simple'?';display:none':'')+'">'+
+    '<input id="PIUN'+i+'" class="inp" placeholder="Unidad (m², gl, ud...)" value="'+unidad+'" style="width:110px">'+
+    '<span style="font-size:12px;color:var(--tx2);flex-shrink:0">Vr. unit. $</span>'+
+    '<input id="PIUV'+i+'" class="inp" placeholder="0" value="'+uv+'" oninput="presFormatInput(this);presCalcRow('+i+');presRecalcTotal()" style="width:120px;text-align:right" inputmode="numeric">'+
+    '<span style="font-size:12px;color:var(--tx2);flex-shrink:0">×</span>'+
+    '<input id="PIQTY'+i+'" class="inp" type="number" placeholder="Cant." value="'+qty+'" oninput="presCalcRow('+i+');presRecalcTotal()" style="width:80px;text-align:right">'+
+    '<span style="font-size:12px;font-weight:600;color:var(--txi);white-space:nowrap" id="PITOT'+i+'">$'+(it.valor>0?it.valor.toLocaleString('es-CL'):'0')+'</span>'+
+    '<input type="hidden" id="PITOTH'+i+'" value="'+(it.valor||0)+'">'+
+    '</div>'+
+    '</div>';
+}
+function presToggleTipo(i){
+  var tp=(document.getElementById('PITP'+i)||{}).value;
+  var rs=document.getElementById('PIROW_S'+i);
+  var ru=document.getElementById('PIROW_U'+i);
+  if(rs)rs.style.display=tp==='unitario'?'none':'flex';
+  if(ru)ru.style.display=tp==='simple'?'none':'flex';
+  presRecalcTotal();
+}
+function presRecalcTotal(){
+  var rows=document.querySelectorAll('.pres-row');
+  var total=0;
+  rows.forEach(function(row){
+    var i=row.dataset.idx;
+    var tp=(document.getElementById('PITP'+i)||{}).value||'simple';
+    if(tp==='unitario'){
+      var qty=parseFloat((document.getElementById('PIQTY'+i)||{}).value||0);
+      var uv=parseCLP((document.getElementById('PIUV'+i)||{}).value||'');
+      total+=qty>0&&uv>0?qty*uv:uv;
+    } else {
+      total+=parseCLP((document.getElementById('PIV'+i)||{}).value||'');
+    }
+  });
+  var tEl=document.getElementById('PRTOTAL');
+  if(tEl)tEl.textContent='Total neto: $'+total.toLocaleString('es-CL');
+}
+// ── Notas predefinidas ──
+function getNotasPred(){try{return JSON.parse(localStorage.getItem('arq_notas_pred')||'[]')}catch(e){return[]}}
+function saveNotasPred(arr){localStorage.setItem('arq_notas_pred',JSON.stringify(arr));clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800)}
+function renderNotasPred(){
+  var notas=getNotasPred();
+  var c=document.getElementById('NOTAS_LIST');if(!c)return;
+  if(notas.length===0){c.innerHTML='<div class="tsm tx2">Sin notas guardadas aún. Guarda una desde una cotización usando el botón 💾.</div>';return}
+  c.innerHTML=notas.map(function(n,i){
+    var preview=n.replace(/<[^>]+>/g,'').substring(0,80)+(n.replace(/<[^>]+>/g,'').length>80?'…':'');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border:.5px solid var(--bd);border-radius:var(--r);margin-bottom:6px">'+
+      '<div style="flex:1;font-size:12px;color:var(--tx2)">'+preview+'</div>'+
+      '<button class="btn btn-sm btn-d" onclick="presEliminarNota('+i+')">×</button>'+
+      '</div>';
+  }).join('');
+}
+
+// ── Editor de texto con formato para presupuestos ──
+function presEditorHTML(id,val,minH){
+  minH=minH||80;
+  // Los botones usan onmousedown+preventDefault para no perder el foco del contenteditable
+  var btn=function(cmd,label,style){
+    return '<button type="button" onmousedown="event.preventDefault();presCmd(\''+id+'\',\''+cmd+'\')" title="'+label+'" style="background:none;border:.5px solid var(--bd);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;'+( style||'')+';min-width:28px">'+label+'</button>';
+  };
+  return '<div style="border:.5px solid var(--bd2);border-radius:var(--r);overflow:hidden">'+
+    '<div style="display:flex;gap:2px;padding:4px 6px;background:var(--bg2);border-bottom:.5px solid var(--bd);flex-wrap:wrap;align-items:center">'+
+    btn('bold','B','font-weight:700')+
+    btn('italic','I','font-style:italic')+
+    btn('underline','U','text-decoration:underline')+
+    '<div style="width:1px;height:16px;background:var(--bd);margin:0 2px"></div>'+
+    btn('insertUnorderedList','• Lista','')+
+    btn('insertOrderedList','1. Núm.','')+
+    '<div style="width:1px;height:16px;background:var(--bd);margin:0 2px"></div>'+
+    '<button type="button" onmousedown="event.preventDefault();var e=document.getElementById(\''+id+'\');if(e){e.innerHTML=\'\';e.focus()}" style="background:none;border:.5px solid var(--bdd);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px;color:var(--txd)">✕</button>'+
+    '</div>'+
+    '<div id="'+id+'" contenteditable="true" style="min-height:'+minH+'px;padding:8px 10px;font-size:13px;outline:none;background:var(--bg);line-height:1.6;word-break:break-word">'+( val||'')+'</div>'+
+    '</div>';
+}
+function presCmd(id,cmd){
+  var el=document.getElementById(id);if(!el)return;
+  el.focus();
+  document.execCommand(cmd,false,null);
+}
+function presGetEditor(id){var el=document.getElementById(id);return el?el.innerHTML.trim():''}
+
+// ── Widget de notas guardadas ──
+function presNotasWidget(targetId,notas){
+  if(!notas||!notas.length)return '';
+  return '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">'+
+    notas.map(function(n,i){
+      var label=n.length>30?n.substring(0,30)+'…':n;
+      return '<span onclick="presInsertNota(\''+targetId+'\','+i+')" style="background:var(--bg2);border:.5px solid var(--bd);border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--tx2)" title="'+n+'">'+label+'</span>';
+    }).join('')+
+    '</div>';
+}
+function presInsertNota(targetId,idx){
+  var notas=getNotasPred();var nota=notas[idx];if(!nota)return;
+  var el=document.getElementById(targetId);if(!el)return;
+  el.focus();
+  if(el.innerHTML&&el.innerHTML.trim())el.innerHTML+='\n';
+  document.execCommand('insertHTML',false,nota);
+}
+function presGuardarNota(sourceId){
+  var el=document.getElementById(sourceId);if(!el)return;
+  var txt=el.innerText.trim();if(!txt){alert('Escribe algo primero');return}
+  var notas=getNotasPred();
+  if(notas.indexOf(txt)>=0){alert('Esta nota ya está guardada');return}
+  notas.push(txt);saveNotasPred(notas);
+  // Re-render widgets
+  var w=document.getElementById('NOTAW_'+sourceId);
+  if(w)w.innerHTML=presNotasWidget(sourceId,notas);
+  alert('✓ Nota guardada');
+}
+function presEliminarNota(idx){
+  if(!confirm('¿Eliminar esta nota guardada?'))return;
+  var notas=getNotasPred();notas.splice(idx,1);saveNotasPred(notas);vConf();
+}
+
 function editPres(id){
   var ps=rdb('presupuestos',[]);var clis=rdb('clientes',[]);
   var cfg=rdb('config',{empresa:'',arquitecto:'',email:''});
+  var notas=getNotasPred();
   var p=id?ps.find(function(x){return x.id===id}):null;
-  if(!p)p={id:uid(),clienteId:'',cliente:'',desc:'',items:[{desc:'',valor:0}],nota:'Valor neto, no incluye IVA.',fecha:new Date().toLocaleDateString('es-CL'),firma:cfg.arquitecto||''};
+  if(!p)p={id:uid(),clienteId:'',cliente:'',desc:'',items:[{desc:'',valor:0,tipo:'simple'}],nota:'Valor neto, no incluye IVA.',fecha:new Date().toLocaleDateString('es-CL'),firma:cfg.arquitecto||'',profesion:cfg.profesion||'Arquitecto',firmaCliente:true};
   var isNew=!id;
   var cliOpts=clis.map(function(c){return'<option value="'+c.id+'"'+(p.clienteId===c.id?' selected':'')+'>'+c.nombre+'</option>'}).join('');
-  var itemsH=p.items.map(function(it,i){return'<div class="row" style="padding:4px 0"><input placeholder="Descripción del ítem" class="inp f1" id="PID'+i+'" value="'+(it.desc||'')+'"><input type="number" placeholder="$" class="inp" id="PIV'+i+'" value="'+(it.valor||'')+'" style="width:130px;margin-left:6px"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:4px">×</button></div>'}).join('');
+  var itemsH=p.items.map(function(it,i){return buildItemRow(i,it)}).join('');
+  var notasWidget=notas.length?'<div id="NOTAW_PRDE" style="margin-top:4px"><div class="tsm tx2" style="margin-bottom:3px">Notas guardadas (clic para insertar):</div>'+presNotasWidget('PRDE',notas)+'</div>':'';
+  var notasWidgetN=notas.length?'<div id="NOTAW_PRNO" style="margin-top:4px"><div class="tsm tx2" style="margin-bottom:3px">Notas guardadas:</div>'+presNotasWidget('PRNO',notas)+'</div>':'';
   document.getElementById('MOD').innerHTML=
     '<div class="mov" onclick="if(event.target===this)closeMod()"><div class="modal">'+
     '<div class="mhdr"><div class="mttl">Presupuesto / Cotización</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
     '<div class="g2"><div class="fld"><label>Cliente</label><select id="PRCL" style="width:100%"><option value="">— Seleccionar —</option>'+cliOpts+'</select></div>'+
     '<div class="fld"><label>Fecha</label><input id="PRFE" value="'+(p.fecha||'')+'"></div></div>'+
-    '<div class="fld"><label>Descripción de los trabajos</label><textarea id="PRDE">'+(p.desc||'')+'</textarea></div>'+
-    '<div class="sec-ttl">Ítems y costos</div>'+
+    // Descripción con editor
+    '<div class="fld"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+    '<label style="margin:0">Descripción de los trabajos</label>'+
+    '<button type="button" onclick="presGuardarNota(\'PRDE\')" class="btn btn-sm" style="font-size:11px">💾 Guardar como nota</button>'+
+    '</div>'+
+    presEditorHTML('PRDE',p.desc||'',80)+
+    notasWidget+
+    '</div>'+
+    // Ítems
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+    '<div class="sec-ttl" style="margin:0">Ítems y costos</div>'+
+    '<div style="font-size:13px;font-weight:600;color:var(--txi)" id="PRTOTAL">Total neto: $0</div>'+
+    '</div>'+
     '<div id="PRIT">'+itemsH+'</div>'+
-    '<button class="btn btn-sm mt2" onclick="addItemPres()">+ Agregar ítem</button>'+
+    '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
+    '<button class="btn btn-sm" onclick="addItemPres(\'simple\')">+ Ítem valor fijo</button>'+
+    '<button class="btn btn-sm" onclick="addItemPres(\'unitario\')">+ Ítem por unidad (m², gl...)</button>'+
+    '</div>'+
     '<div class="hr"></div>'+
-    '<div class="fld"><label>Nota al pie (editable)</label><input id="PRNO" value="'+(p.nota||'Valor neto, no incluye IVA ni otros impuestos.')+'"></div>'+
-    '<div class="fld"><label>Firma / Profesional</label><input id="PRFR" value="'+(p.firma||cfg.arquitecto||'')+'"></div>'+
+    // Nota al pie con editor
+    '<div class="fld"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+    '<label style="margin:0">Nota al pie</label>'+
+    '<button type="button" onclick="presGuardarNota(\'PRNO\')" class="btn btn-sm" style="font-size:11px">💾 Guardar como nota</button>'+
+    '</div>'+
+    presEditorHTML('PRNO',p.nota||'Valor neto, no incluye IVA.',60)+
+    notasWidgetN+
+    '</div>'+
+    // Firma
+    '<div class="fld" style="display:flex;align-items:center;gap:8px">'+
+    '<input type="checkbox" id="PRFIRMA" style="width:16px;height:16px;accent-color:var(--txi)"'+(p.firmaCliente!==false?' checked':'')+'>'+
+    '<label for="PRFIRMA" style="font-size:13px;cursor:pointer">Incluir espacio de firma del cliente en PDF</label>'+
+    '</div>'+
+    '<div style="background:var(--bgi);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--txi);margin-top:6px">👷 El profesional firmante se elige al momento de <strong>imprimir el PDF</strong>, desde los profesionales guardados en Configuración.</div>'+
     '<div class="hr"></div>'+
     '<div class="sec-ttl">Condiciones de pago</div>'+
-    '<div class="fld"><textarea id="PRCOND" style="min-height:60px">'+(p.condPago||'50% al inicio de los trabajos y 50% al ingreso del expediente a la Dirección de Obras Municipales.')+'</textarea></div>'+
-    '<div class="fld"><label>Nota recepción definitiva (opcional)</label><input id="PRRECEP" value="'+(p.notaRecep||'')+'" placeholder="Ej: Incluye tramitación de recepción definitiva al 100% de construcción."></div>'+
+    '<div class="fld">'+presEditorHTML('PRCOND',p.condPago||'50% al inicio de los trabajos y 50% al ingreso del expediente a la Dirección de Obras Municipales.',60)+'</div>'+
+    '<div class="fld"><label>Nota recepción definitiva (opcional)</label>'+presEditorHTML('PRRECEP',p.notaRecep||'',50)+'</div>'+
     '<div class="hr"></div>'+
-    '<div class="sec-ttl">Datos de transferencia (opcional)</div>'+
-    '<div class="g2"><div class="fld"><label>Banco</label><input id="PRBCO" value="'+(p.banco||'')+'"></div>'+
-    '<div class="fld"><label>Tipo de cuenta</label><input id="PRTCTA" value="'+(p.tipoCuenta||'')+'" placeholder="Cta. corriente, vista..."></div></div>'+
-    '<div class="g2"><div class="fld"><label>N° de cuenta</label><input id="PRNCTA" value="'+(p.numCuenta||'')+'"></div>'+
-    '<div class="fld"><label>RUT titular</label><input id="PRRUT" value="'+(p.rutCuenta||'')+'"></div></div>'+
-    '<div class="fld"><label>Email transferencia</label><input id="PRMAIL" value="'+(p.emailCuenta||'')+'"></div>'+
+    '<div style="background:var(--bgi);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--txi)">🏦 Los datos de transferencia se eligen al momento de <strong>imprimir el PDF</strong>, desde las cuentas guardadas en Configuración.</div>'+
     '<div class="hr"></div>'+
     '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeMod()">Cancelar</button><button class="btn btn-p" onclick="savePres(\''+p.id+'\','+isNew+')">Guardar</button></div>'+
     '</div></div>';
+  setTimeout(presRecalcTotal,50);
+  setTimeout(function(){var s=document.getElementById('PRCL');if(s)s.value=p.clienteId||''},10);
 }
-function addItemPres(){var c=document.getElementById('PRIT');var i=c.querySelectorAll('.row').length;c.insertAdjacentHTML('beforeend','<div class="row" style="padding:4px 0"><input placeholder="Descripción" class="inp f1" id="PID'+i+'"><input type="number" placeholder="$" class="inp" id="PIV'+i+'" style="width:130px;margin-left:6px"><button class="btn btn-sm btn-d" onclick="this.parentElement.remove()" style="margin-left:4px">×</button></div>')}
+function addItemPres(tipo){
+  var c=document.getElementById('PRIT');
+  var i=c.querySelectorAll('.pres-row').length;
+  c.insertAdjacentHTML('beforeend',buildItemRow(i,{tipo:tipo||'simple'}));
+  presRecalcTotal();
+}
 function savePres(id,isNew){
   var ps=rdb('presupuestos',[]);var clis=rdb('clientes',[]);
   var g=function(i){return(document.getElementById(i)||{}).value||''};
   var cid=g('PRCL');var cl=clis.find(function(c){return c.id===cid});
-  var dInputs=document.querySelectorAll('[id^=PID]');var vInputs=document.querySelectorAll('[id^=PIV]');
-  var items=Array.from(dInputs).map(function(el,i){return{desc:el.value,valor:parseFloat((vInputs[i]||{}).value||0)}}).filter(function(it){return it.desc});
-  var upd={id:id,clienteId:cid,cliente:cl?cl.nombre:'',desc:g('PRDE'),items:items,nota:g('PRNO'),firma:g('PRFR'),fecha:g('PRFE'),condPago:g('PRCOND'),notaRecep:g('PRRECEP'),banco:g('PRBCO'),tipoCuenta:g('PRTCTA'),numCuenta:g('PRNCTA'),rutCuenta:g('PRRUT'),emailCuenta:g('PRMAIL')};
+  var firmaCliente=(document.getElementById('PRFIRMA')||{}).checked!==false;
+  var rows=document.querySelectorAll('#PRIT .pres-row');
+  var items=Array.from(rows).map(function(row){
+    var i=row.dataset.idx;
+    var desc=(document.getElementById('PID'+i)||{}).value||'';
+    var tp=(document.getElementById('PITP'+i)||{}).value||'simple';
+    if(!desc)return null;
+    if(tp==='unitario'){
+      var uv=parseCLP((document.getElementById('PIUV'+i)||{}).value||'');
+      var qty=parseFloat((document.getElementById('PIQTY'+i)||{}).value||0);
+      var unidad=(document.getElementById('PIUN'+i)||{}).value||'';
+      var total=qty>0&&uv>0?qty*uv:uv;
+      return{desc:desc,tipo:'unitario',unidad:unidad,uv:uv,qty:qty,valor:total};
+    } else {
+      var val=parseCLP((document.getElementById('PIV'+i)||{}).value||'');
+      return{desc:desc,tipo:'simple',valor:val};
+    }
+  }).filter(Boolean);
+  var upd={id:id,clienteId:cid,cliente:cl?cl.nombre:'',
+    desc:presGetEditor('PRDE'),items:items,
+    nota:presGetEditor('PRNO'),
+    firmaCliente:firmaCliente,fecha:g('PRFE'),
+    condPago:presGetEditor('PRCOND'),
+    notaRecep:presGetEditor('PRRECEP')};
   if(isNew)ps.push(upd);else{var i=ps.findIndex(function(x){return x.id===id});if(i>=0)ps[i]=upd}
   wdb('presupuestos',ps);closeMod();vPres();
 }
 function printPres(id){
+  var profs=getProfesionales();
+  var bancos=getBancos();
+  var cfg=rdb('config',{empresa:'',arquitecto:'',profesion:'',email:'',telefono:''});
+  // Armar sección profesionales — solo de la lista
+  var profOpts='';
+  if(profs.length>0){
+    profOpts=profs.map(function(pr,i){
+      return '<div onclick="printPresSelProf('+i+',this)" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:.5px solid var(--bd);border-radius:var(--r);cursor:pointer;margin-bottom:6px;transition:all .15s" onmouseover="this.style.background=\'var(--bgi)\'" onmouseout="if(!this.classList.contains(\'sel-prof\'))this.style.background=\'\'">'+
+        '<input type="radio" name="prof_sel" value="'+i+'" style="width:16px;height:16px;accent-color:var(--txi)">'+
+        '<div style="flex:1">'+
+        '<div style="font-weight:600;font-size:13px">'+pr.nombre+'</div>'+
+        '<div class="tsm tx2">'+pr.profesion+'</div>'+
+        '</div></div>';
+    }).join('');
+  }
+  // Armar sección cuentas bancarias
+  var bancoOpts='';
+  if(bancos.length>0){
+    bancoOpts=bancos.map(function(b,i){
+      var det=[b.banco,b.tipoCuenta,b.numCuenta?'N° '+b.numCuenta:''].filter(Boolean).join(' · ');
+      return '<div onclick="printPresSelBanco2('+i+',this)" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:.5px solid var(--bd);border-radius:var(--r);cursor:pointer;margin-bottom:6px;transition:all .15s" onmouseover="this.style.background=\'var(--bgi)\'" onmouseout="if(!this.classList.contains(\'sel-bco\'))this.style.background=\'\'">'+
+        '<input type="radio" name="bco_sel" value="'+i+'" style="width:16px;height:16px;accent-color:var(--txi)">'+
+        '<div style="flex:1"><div style="font-weight:600;font-size:13px">'+b.nombre+'</div>'+
+        '<div class="tsm tx2">'+det+'</div></div></div>';
+    }).join('');
+  }
+
+  // Si no hay ni profesionales ni cuentas, imprimir directo con config
+  if(!profOpts&&!bancoOpts){doPrintPres(id,-1,-1);return}
+
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal" style="max-width:480px">'+
+    '<div class="mhdr"><div class="mttl">📄 Opciones de impresión</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
+    // Sección profesional
+    (profOpts?
+      '<div class="sec-ttl">👷 Profesional que firma</div>'+
+      '<div id="PROF_OPTS" style="margin-bottom:12px">'+profOpts+'</div>'
+    :'')+
+    // Sección cuenta bancaria
+    (bancoOpts?
+      '<div class="sec-ttl">🏦 Cuenta bancaria (opcional)</div>'+
+      '<div id="BCO_OPTS" style="margin-bottom:12px">'+bancoOpts+'</div>'
+    :'')+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+    '<button class="btn btn-sm" onclick="doPrintPres(\''+id+'\',-2,-1)">Sin profesional ni banco</button>'+
+    '<div style="display:flex;gap:8px">'+
+    '<button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="doPrintPresConfirm(\''+id+'\')">📄 Imprimir PDF</button>'+
+    '</div></div>'+
+    '</div></div>';
+}
+function printPresSelProf(idx,el){
+  var rb=el.querySelector('input[type=radio]');if(rb)rb.checked=true;
+  document.querySelectorAll('#PROF_OPTS > div').forEach(function(d){d.style.background='';d.style.borderColor='var(--bd)';d.classList.remove('sel-prof')});
+  el.style.background='var(--bgi)';el.style.borderColor='var(--bdi)';el.classList.add('sel-prof');
+}
+function printPresSelBanco2(idx,el){
+  var rb=el.querySelector('input[type=radio]');if(rb)rb.checked=true;
+  document.querySelectorAll('#BCO_OPTS > div').forEach(function(d){d.style.background='';d.style.borderColor='var(--bd)';d.classList.remove('sel-bco')});
+  el.style.background='var(--bgi)';el.style.borderColor='var(--bdi)';el.classList.add('sel-bco');
+}
+function doPrintPresConfirm(id){
+  var profSel=document.querySelector('#PROF_OPTS input[name=prof_sel]:checked');
+  var bcoSel=document.querySelector('#BCO_OPTS input[name=bco_sel]:checked');
+  var profIdx=profSel?parseInt(profSel.value):-2; // -2 = sin profesional, -1 = cfg, >=0 = lista
+  var bcoIdx=bcoSel?parseInt(bcoSel.value):-1;
+  doPrintPres(id,profIdx,bcoIdx);
+}
+function doPrintPres(id,profIdx,bancoIdx){
   var ps=rdb('presupuestos',[]);var p=ps.find(function(x){return x.id===id});if(!p)return;
-  var cfg=rdb('config',{empresa:'',arquitecto:'',email:'',telefono:''});
-  var logo=localStorage.getItem('arq_logo')||'';
+  var cfg=rdb('config',{empresa:'',arquitecto:'',profesion:'',email:'',telefono:''});
+  var bancos=getBancos();
+  var profs=getProfesionales();
+  // Resolver profesional — solo de la lista
+  var prof=null;
+  if(profIdx>=0)prof=profs[profIdx];
+  var banco=bancoIdx>=0?bancos[bancoIdx]:null;
+  closeMod();
   var tot=(p.items||[]).reduce(function(a,x){return a+parseFloat(x.valor||0)},0);
-  var body=pdfCab(cfg,'Presupuesto / Cotización','',p.cliente||'');
-  body+='<p style="margin-bottom:16px">'+(p.desc||'')+'</p>';
-  body+='<table><thead><tr><th style="width:70%">Descripción</th><th style="text-align:right">Valor</th></tr></thead><tbody>';
-  (p.items||[]).forEach(function(it){body+='<tr><td>'+it.desc+'</td><td style="text-align:right">$'+fmt(it.valor)+'</td></tr>'});
-  body+='<tr style="font-weight:bold;font-size:14px"><td style="text-align:right;border-top:2px solid #222">TOTAL NETO</td><td style="text-align:right;border-top:2px solid #222">$'+fmt(tot)+'</td></tr>';
-  body+='</tbody></table><div style="color:#666;font-size:11px;margin-top:16px;border-top:1px solid #ddd;padding-top:12px">'+(p.nota||'')+'</div>';
-  if(p.condPago)body+='<div style="font-size:12px;margin-top:12px"><strong>Condiciones de pago:</strong> '+p.condPago+'</div>';
-  if(p.notaRecep)body+='<div style="font-size:12px;margin-top:8px">'+p.notaRecep+'</div>';
-  if(p.banco||p.numCuenta){body+='<div style="margin-top:16px;padding:12px;background:#f9f9f9;border-radius:6px;font-size:12px"><strong>Datos transferencia:</strong> ';if(p.banco)body+=p.banco+' · ';if(p.tipoCuenta)body+=p.tipoCuenta+' · ';if(p.numCuenta)body+='N° '+p.numCuenta;if(p.rutCuenta)body+=' · RUT '+p.rutCuenta;if(p.emailCuenta)body+=' · '+p.emailCuenta;body+='</div>'}
-  body+='<div class="fa"><div style="display:flex;gap:60px"><div class="fl">'+(p.firma||cfg.arquitecto||'Arquitecto')+'</div><div class="fl">Firma cliente</div></div></div>';
+  var body=pdfCab(cfg,'Presupuesto / Cotización','',p.cliente||'',prof);
+  body+='<div style="margin-bottom:16px;font-size:13px;line-height:1.6">'+(p.desc||'')+'</div>';
+
+  var hasUnitario=(p.items||[]).some(function(it){return it.tipo==='unitario'});
+  if(hasUnitario){
+    body+='<table><thead><tr>'+
+      '<th style="width:38%">Descripción</th>'+
+      '<th style="text-align:center">Unidad</th>'+
+      '<th style="text-align:right">Cantidad</th>'+
+      '<th style="text-align:right">Vr. Unitario</th>'+
+      '<th style="text-align:right">Total</th>'+
+      '</tr></thead><tbody>';
+    (p.items||[]).forEach(function(it){
+      if(it.tipo==='unitario'){
+        body+='<tr><td>'+it.desc+'</td><td style="text-align:center">'+(it.unidad||'')+'</td>'+
+          '<td style="text-align:right">'+Number(it.qty||0).toLocaleString('es-CL')+'</td>'+
+          '<td style="text-align:right">$'+Number(it.uv||0).toLocaleString('es-CL')+'</td>'+
+          '<td style="text-align:right;font-weight:600">$'+Number(it.valor||0).toLocaleString('es-CL')+'</td></tr>';
+      } else {
+        body+='<tr><td>'+it.desc+'</td><td colspan="3" style="text-align:center;color:#888;font-size:11px">Global</td>'+
+          '<td style="text-align:right;font-weight:600">$'+Number(it.valor||0).toLocaleString('es-CL')+'</td></tr>';
+      }
+    });
+    body+='<tr style="font-weight:bold;font-size:14px"><td colspan="4" style="text-align:right;border-top:2px solid #222;padding-top:8px">TOTAL NETO</td><td style="text-align:right;border-top:2px solid #222;padding-top:8px">$'+Number(tot).toLocaleString('es-CL')+'</td></tr>';
+  } else {
+    body+='<table><thead><tr><th style="width:75%">Descripción</th><th style="text-align:right">Valor</th></tr></thead><tbody>';
+    (p.items||[]).forEach(function(it){
+      body+='<tr><td>'+it.desc+'</td><td style="text-align:right;font-weight:600">$'+Number(it.valor||0).toLocaleString('es-CL')+'</td></tr>';
+    });
+    body+='<tr style="font-weight:bold;font-size:14px"><td style="text-align:right;border-top:2px solid #222;padding-top:8px">TOTAL NETO</td><td style="text-align:right;border-top:2px solid #222;padding-top:8px">$'+Number(tot).toLocaleString('es-CL')+'</td></tr>';
+  }
+  body+='</tbody></table>';
+  if(p.nota)body+='<div style="color:#666;font-size:11px;margin-top:14px;border-top:1px solid #ddd;padding-top:10px;line-height:1.5">'+p.nota+'</div>';
+  if(p.condPago)body+='<div style="font-size:12px;margin-top:12px;line-height:1.5"><strong>Condiciones de pago:</strong> '+p.condPago+'</div>';
+  if(p.notaRecep)body+='<div style="font-size:12px;margin-top:8px;line-height:1.5">'+p.notaRecep+'</div>';
+  if(banco){
+    body+='<div style="margin-top:20px;padding:12px 16px;background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;font-size:12px">';
+    body+='<div style="font-weight:700;margin-bottom:6px;font-size:13px">Datos para transferencia</div>';
+    if(banco.nombre)body+='<div><strong>Cuenta:</strong> '+banco.nombre+'</div>';
+    if(banco.banco)body+='<div><strong>Banco:</strong> '+banco.banco+'</div>';
+    if(banco.tipoCuenta)body+='<div><strong>Tipo:</strong> '+banco.tipoCuenta+'</div>';
+    if(banco.numCuenta)body+='<div><strong>N° cuenta:</strong> '+banco.numCuenta+'</div>';
+    if(banco.rut)body+='<div><strong>RUT:</strong> '+banco.rut+'</div>';
+    if(banco.email)body+='<div><strong>Email:</strong> '+banco.email+'</div>';
+    body+='</div>';
+  }
+  // ── Firmas ──
+  var firmaCliente=p.firmaCliente!==false;
+  if(prof){
+    var profBlock='<div style="border-top:1px solid #333;min-width:220px;padding-top:6px;font-size:12px;text-align:center">'+
+      prof.nombre+'<br>'+
+      '<span style="color:#555;font-size:11px">'+( prof.profesion||'Arquitecto')+'</span>'+
+      '</div>';
+      '</div>';
+    if(firmaCliente){
+      body+='<div style="margin-top:80px;display:flex;justify-content:space-between;align-items:flex-end">'+
+        profBlock+
+        '<div style="border-top:1px solid #333;min-width:220px;padding-top:6px;font-size:12px;text-align:center">'+
+          (p.cliente||'Cliente')+'<br><span style="color:#555;font-size:11px">Firma conforme</span>'+
+        '</div></div>';
+    } else {
+      body+='<div style="margin-top:80px;display:flex;justify-content:flex-end">'+profBlock+'</div>';
+    }
+  } else if(firmaCliente){
+    body+='<div style="margin-top:80px;display:flex;justify-content:flex-end">'+
+      '<div style="border-top:1px solid #333;min-width:220px;padding-top:6px;font-size:12px;text-align:center">'+
+        (p.cliente||'Cliente')+'<br><span style="color:#555;font-size:11px">Firma conforme</span>'+
+      '</div></div>';
+  }
   abrirPDF(body);
 }
 
@@ -1303,57 +2095,244 @@ function vHon(){
 }
 
 // ══════════════════════════════════════
+// CUENTAS BANCARIAS (storage compartido)
+// ══════════════════════════════════════
+function getBancos(){try{return JSON.parse(localStorage.getItem('arq_bancos')||'[]')}catch(e){return[]}}
+function saveBancos(arr){
+  localStorage.setItem('arq_bancos',JSON.stringify(arr));
+  clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800);
+}
+function renderBancos(){
+  var bancos=getBancos();
+  var c=document.getElementById('BANCO_LIST');if(!c)return;
+  if(bancos.length===0){c.innerHTML='<div class="tsm tx2">Sin cuentas. Agrega una con el botón de arriba.</div>';return}
+  c.innerHTML=bancos.map(function(b,i){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg2);border-radius:var(--r);margin-bottom:8px;border:.5px solid var(--bd)">'+
+      '<div style="flex:1;min-width:0">'+
+      '<div style="font-weight:600;font-size:13px">'+b.nombre+'</div>'+
+      '<div class="tsm tx2" style="margin-top:2px">'+
+      [b.banco,b.tipoCuenta,b.numCuenta?'N° '+b.numCuenta:'',b.rut?'RUT '+b.rut:'',b.email].filter(Boolean).join(' · ')+
+      '</div></div>'+
+      '<button class="btn btn-sm" onclick="editBancoModal('+i+')">✏️ Editar</button>'+
+      '<button class="btn btn-sm btn-d" onclick="delBanco('+i+')">×</button>'+
+      '</div>';
+  }).join('');
+}
+function editBancoModal(idx){
+  var bancos=getBancos();
+  var b=idx>=0?bancos[idx]:{nombre:'',banco:'',tipoCuenta:'',numCuenta:'',rut:'',email:''};
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal" style="max-width:480px">'+
+    '<div class="mhdr"><div class="mttl">'+(idx>=0?'Editar cuenta':'Nueva cuenta bancaria')+'</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
+    '<div class="fld"><label>Alias / Nombre de la cuenta *</label><input id="BN_NOM" value="'+(b.nombre||'')+'" placeholder="Ej: Cuenta principal BCI"></div>'+
+    '<div class="g2">'+
+    '<div class="fld"><label>Banco</label><input id="BN_BCO" value="'+(b.banco||'')+'" placeholder="BCI, Santander, BancoEstado..."></div>'+
+    '<div class="fld"><label>Tipo de cuenta</label><input id="BN_TIPO" value="'+(b.tipoCuenta||'')+'" placeholder="Cta. corriente, vista, ahorro..."></div>'+
+    '</div>'+
+    '<div class="g2">'+
+    '<div class="fld"><label>N° de cuenta</label><input id="BN_NUM" value="'+(b.numCuenta||'')+'"></div>'+
+    '<div class="fld"><label>RUT titular</label><input id="BN_RUT" value="'+(b.rut||'')+'"></div>'+
+    '</div>'+
+    '<div class="fld"><label>Email para transferencias</label><input id="BN_MAIL" type="email" value="'+(b.email||'')+'" placeholder="correo@dominio.cl"></div>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px">'+
+    '<button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="saveBanco('+idx+')">💾 Guardar cuenta</button>'+
+    '</div></div></div>';
+  setTimeout(function(){var e=document.getElementById('BN_NOM');if(e)e.focus()},50);
+}
+function saveBanco(idx){
+  var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var nom=g('BN_NOM').trim();if(!nom)return alert('El alias es obligatorio');
+  var b={nombre:nom,banco:g('BN_BCO'),tipoCuenta:g('BN_TIPO'),numCuenta:g('BN_NUM'),rut:g('BN_RUT'),email:g('BN_MAIL')};
+  var arr=getBancos();
+  if(idx>=0)arr[idx]=b;else arr.push(b);
+  saveBancos(arr);closeMod();renderBancos();
+}
+function delBanco(idx){
+  if(!confirm('¿Eliminar esta cuenta bancaria?'))return;
+  var arr=getBancos();arr.splice(idx,1);saveBancos(arr);renderBancos();
+}
+
+// ══════════════════════════════════════
+// PROFESIONALES
+// ══════════════════════════════════════
+function getProfesionales(){try{return JSON.parse(localStorage.getItem('arq_profesionales')||'[]')}catch(e){return[]}}
+function saveProfesionales(arr){
+  localStorage.setItem('arq_profesionales',JSON.stringify(arr));
+  clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800);
+}
+function renderProfesionales(){
+  var profs=getProfesionales();
+  var c=document.getElementById('PROF_LIST');if(!c)return;
+  if(profs.length===0){c.innerHTML='<div class="tsm tx2">Sin profesionales. Agrega uno con el botón de arriba.</div>';return}
+  c.innerHTML=profs.map(function(pr,i){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg2);border-radius:var(--r);margin-bottom:8px;border:.5px solid var(--bd)">'+
+      '<div style="flex:1;min-width:0">'+
+      '<div style="font-weight:600;font-size:13px">'+pr.nombre+'</div>'+
+      '<div class="tsm tx2" style="margin-top:2px">'+[pr.profesion,pr.email,pr.telefono].filter(Boolean).join(' · ')+'</div>'+
+      '</div>'+
+      '<button class="btn btn-sm" onclick="editProfModal('+i+')">✏️ Editar</button>'+
+      '<button class="btn btn-sm btn-d" onclick="delProf('+i+')">×</button>'+
+      '</div>';
+  }).join('');
+}
+function editProfModal(idx){
+  var profs=getProfesionales();
+  var pr=idx>=0?profs[idx]:{nombre:'',profesion:'Arquitecto',email:'',telefono:''};
+  document.getElementById('MOD').innerHTML=
+    '<div class="mov" onclick="if(event.target===this)closeMod()">'+
+    '<div class="modal" style="max-width:460px">'+
+    '<div class="mhdr"><div class="mttl">'+(idx>=0?'Editar profesional':'Nuevo profesional')+'</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
+    '<div class="fld"><label>Nombre completo *</label><input id="PR_NOM" value="'+(pr.nombre||'')+'" placeholder="Ej: Rodrigo Aguayo Barrales"></div>'+
+    '<div class="fld"><label>Profesión / Cargo</label>'+
+    '<select id="PR_PRO">'+
+    '<option value="Arquitecto"'+(pr.profesion==='Arquitecto'||!pr.profesion?' selected':'')+'>Arquitecto</option>'+
+    '<option value="Ingeniero Constructor"'+(pr.profesion==='Ingeniero Constructor'?' selected':'')+'>Ingeniero Constructor</option>'+
+    '<option value="Gestor de Proyectos"'+(pr.profesion==='Gestor de Proyectos'?' selected':'')+'>Gestor de Proyectos</option>'+
+    '</select></div>'+
+    '<div class="fld"><label>Email</label><input id="PR_MAIL" type="email" value="'+(pr.email||'')+'" placeholder="correo@estudio.cl"></div>'+
+    '<div class="fld"><label>Teléfono</label><input id="PR_TEL" value="'+(pr.telefono||'')+'" placeholder="+56 9 1234 5678"></div>'+
+    '<div class="hr"></div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px">'+
+    '<button class="btn" onclick="closeMod()">Cancelar</button>'+
+    '<button class="btn btn-p" onclick="saveProf('+idx+')">💾 Guardar profesional</button>'+
+    '</div></div></div>';
+  setTimeout(function(){var e=document.getElementById('PR_NOM');if(e)e.focus()},50);
+}
+function saveProf(idx){
+  var g=function(i){return(document.getElementById(i)||{}).value||''};
+  var nom=g('PR_NOM').trim();if(!nom)return alert('El nombre es obligatorio');
+  var pr={nombre:nom,profesion:g('PR_PRO')||'Arquitecto',email:g('PR_MAIL'),telefono:g('PR_TEL')};
+  var arr=getProfesionales();
+  if(idx>=0)arr[idx]=pr;else arr.push(pr);
+  saveProfesionales(arr);closeMod();renderProfesionales();
+}
+function delProf(idx){
+  if(!confirm('¿Eliminar este profesional?'))return;
+  var arr=getProfesionales();arr.splice(idx,1);saveProfesionales(arr);renderProfesionales();
+}
+
+// ══════════════════════════════════════
 // CONFIGURACIÓN
 // ══════════════════════════════════════
 function vConf(){
-  var cfg=rdb('config',{empresa:'Mi Estudio de Arquitectura',arquitecto:'',email:'',telefono:''});
+  var cfg=rdb('config',{empresa:'',arquitecto:'',profesion:'',email:'',telefono:''});
   var u1=localStorage.getItem('arq_u1_UN')||'Usuario 1';
   var u2=localStorage.getItem('arq_u2_UN')||'Usuario 2';
   document.getElementById('MAIN').innerHTML=
     '<div class="g2">'+
-    '<div><div class="card"><div class="sec-ttl">Datos de la empresa</div>'+
-    '<div class="fld"><label>Nombre empresa / Estudio</label><input id="CFE" value="'+(cfg.empresa||'')+'"></div>'+
-    '<div class="fld"><label>Arquitecto / Profesional</label><input id="CFA" value="'+(cfg.arquitecto||'')+'"></div>'+
-    '<div class="fld"><label>Email</label><input id="CFEM" value="'+(cfg.email||'')+'"></div>'+
-    '<div class="fld"><label>Teléfono</label><input id="CFT" value="'+(cfg.telefono||'')+'"></div></div>'+
-    '<div class="card"><div class="sec-ttl">Usuario activo: '+CU+'</div>'+
-    '<div class="fld"><label>Nombre</label><input id="CFU'+CU+'N" value="'+(rdb('profNombre','')||'')+'"></div>'+
-    '<div class="fld"><label>Profesión / Cargo</label><input id="CFU'+CU+'PRF" value="'+(rdb('profProfesion','')||'')+'"></div>'+
-    '<div class="fld"><label>Teléfono personal</label><input id="CFU'+CU+'TEL" value="'+(rdb('profTelefono','')||'')+'"></div>'+
-    '<div class="fld"><label>Email personal</label><input id="CFU'+CU+'MAIL" value="'+(rdb('profEmail','')||'')+'"></div>'+
-    '<div class="fld"><label>Nombre selector (corto)</label><input id="CFU1" value="'+u1+'" placeholder="Usuario 1"></div>'+
-    '<div class="fld"><label>Nombre Usuario 2</label><input id="CFU2" value="'+u2+'" placeholder="Usuario 2"></div></div>'+
-    '<button class="btn btn-p" onclick="saveConf()">💾 Guardar configuración</button></div>'+
-    '<div><div class="card"><div class="sec-ttl">Logo de la empresa</div>'+
-    '<div class="tsm tx2 mb2">Aparecerá en el sidebar y en los informes PDF.</div>'+
+    '<div>'+
+    // ── Membrete — solo empresa ──
+    '<div class="card mb2">'+
+    '<div class="sec-ttl">🏢 Datos del membrete</div>'+
+    '<div style="background:var(--bgi);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--txi);margin-bottom:12px">'+
+    'Solo el nombre de la empresa. El nombre, email y teléfono del profesional en el membrete salen de los <strong>Profesionales firmantes</strong> (abajo).'+
+    '</div>'+
+    '<div class="fld"><label>Nombre de la empresa / Estudio</label><input id="CFE" value="'+(cfg.empresa||'')+'" placeholder="Ej: Estudio Módulo Sur"></div>'+
+    '</div>'+
+    // ── Usuarios ──
+    '<div class="card mb2">'+
+    '<div class="sec-ttl">👤 Usuarios del sistema</div>'+
+    '<div class="fld"><label>Nombre selector Usuario 1 (corto)</label><input id="CFU1" value="'+u1+'" placeholder="Usuario 1"></div>'+
+    '<div class="fld"><label>Nombre selector Usuario 2 (corto)</label><input id="CFU2" value="'+u2+'" placeholder="Usuario 2"></div>'+
+    '</div>'+
+    '<button class="btn btn-p" onclick="saveConf()">💾 Guardar configuración</button>'+
+    // ── Notas guardadas ──
+    '<div class="card mt3">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+    '<div class="sec-ttl" style="margin:0">📝 Notas guardadas (cotizaciones)</div>'+
+    '</div>'+
+    '<div class="tsm tx2 mb2">Notas que puedes insertar rápidamente al redactar cotizaciones.</div>'+
+    '<div id="NOTAS_LIST"></div>'+
+    '</div>'+
+    // ── Profesionales ──
+    '<div class="card mt3">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+    '<div class="sec-ttl" style="margin:0">👷 Profesionales firmantes</div>'+
+    '<button class="btn btn-p btn-sm" onclick="editProfModal(-1)">+ Nuevo profesional</button>'+
+    '</div>'+
+    '<div class="tsm tx2 mb2">Nombre, email y teléfono del profesional aparecen en el membrete al imprimir. Elige cuál firma al generar cada PDF.</div>'+
+    '<div id="PROF_LIST"></div>'+
+    '</div>'+
+    // ── Cuentas bancarias ──
+    '<div class="card mt3">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+    '<div class="sec-ttl" style="margin:0">🏦 Cuentas bancarias</div>'+
+    '<button class="btn btn-p btn-sm" onclick="editBancoModal(-1)">+ Nueva cuenta</button>'+
+    '</div>'+
+    '<div class="tsm tx2 mb2">Se eligen al imprimir una cotización PDF.</div>'+
+    '<div id="BANCO_LIST"></div>'+
+    '</div>'+
+    '</div>'+
+    '<div>'+
+    '<div class="card mb2"><div class="sec-ttl">Logo de la empresa</div>'+
+    '<div class="tsm tx2 mb2">Aparecerá en el sidebar y en todos los informes PDF.</div>'+
     '<div id="LPREV" style="margin-bottom:12px;min-height:50px">'+( localStorage.getItem('arq_logo')?'<img src="'+localStorage.getItem('arq_logo')+'" style="max-height:60px;max-width:160px;border-radius:4px">':'<span class="tsm tx2">Sin logo</span>')+'</div>'+
     '<input type="file" id="LFILE" accept="image/*" onchange="uploadLogo(this)" style="font-size:13px">'+
     (localStorage.getItem('arq_logo')?
-  '<br><button class="btn btn-sm btn-d mt2" onclick="deleteLogo()">Eliminar logo</button>'+
-  '<br><button class="btn btn-sm mt2" style="background:#e8c97a22;color:#856404;border:1px solid #e8c97a55" onclick="sincLogo()">⬇ Exportar logo (para otros dispositivos)</button>'
-  :'<div style="font-size:11px;color:#856404;background:#faeeda;border-radius:6px;padding:6px 10px;margin-top:6px">'+
-  '⚠ Si usas esta app en otro dispositivo (celular), debes subir el logo allí también. '+
-  'El logo se guarda localmente en cada dispositivo.</div>')+
+    '<br><button class="btn btn-sm btn-d mt2" onclick="deleteLogo()">Eliminar logo</button>'+
+    '<br><button class="btn btn-sm mt2" style="background:#e8c97a22;color:#856404;border:1px solid #e8c97a55" onclick="sincLogo()">⬇ Exportar logo (para otros dispositivos)</button>'
+    :'<div style="font-size:11px;color:#856404;background:#faeeda;border-radius:6px;padding:6px 10px;margin-top:6px">'+
+    '⚠ Si usas esta app en otro dispositivo, debes subir el logo allí también.</div>')+
+    '</div>'+
+    // Vista previa del membrete
+    '<div class="card mb2" id="PREV_MEMBRETE">'+
+    '<div class="sec-ttl">Vista previa membrete</div>'+
+    '<div class="tsm tx2 mb2" style="color:var(--txi)">El membrete mostrará solo el profesional elegido al imprimir. Ejemplo con el primero de la lista:</div>'+
+    '<div style="padding:12px;background:#fff;border:.5px solid var(--bd);border-radius:var(--r);font-family:Arial,sans-serif;margin-bottom:10px">'+
+    '<div style="font-size:14px;font-weight:700">'+(cfg.empresa||'Nombre de la empresa')+'</div>'+
+    '<div id="PREV_MEMB_PROFS" style="font-size:12px;color:#555;margin-top:2px"></div>'+
+    '<div style="font-size:12px;color:#555">'+(cfg.email||'')+'</div>'+
+    '<div style="font-size:12px;color:#555">'+(cfg.telefono?'Tel: '+cfg.telefono:'')+'</div>'+
+    '</div>'+
+    '<div class="tsm tx2 mb2">Todos los profesionales disponibles para elegir al imprimir:</div>'+
+    '<div id="PREV_PROFS"></div>'+
     '</div>'+
     '<div class="card"><div class="sec-ttl">Exportar / Importar datos</div>'+
-    '<div class="tsm tx2 mb2">Los datos se guardan en este navegador. Exporta para hacer backup o para trasladarlos.</div>'+
+    '<div class="tsm tx2 mb2">Los datos se guardan en este navegador. Exporta para hacer backup o trasladarlos.</div>'+
     '<button class="btn btn-sm mt1" onclick="exportData()">📤 Exportar</button> '+
     '<label class="btn btn-sm" style="cursor:pointer">📥 Importar<input type="file" accept=".json" onchange="importData(this)" style="display:none"></label>'+
-    '</div></div></div>';
+    '</div>'+
+    '</div>'+
+    '</div>';
+  setTimeout(function(){
+    renderBancos();renderNotasPred();renderProfesionales();
+    var profs2=getProfesionales();
+    // Membrete preview — solo el primero como ejemplo
+    var membPEl=document.getElementById('PREV_MEMB_PROFS');
+    if(membPEl){
+      var p0=profs2.length>0?profs2[0]:null;
+      membPEl.innerHTML=p0?
+        '<div>'+p0.nombre+'</div>'+
+        (p0.email?'<div style="color:#555;font-size:12px">'+p0.email+'</div>':'')+
+        (p0.telefono?'<div style="color:#555;font-size:12px">Tel: '+p0.telefono+'</div>':'')
+        :'<span style="color:#aaa;font-style:italic">— sin profesional —</span>';
+    }
+    // Lista de firmas disponibles
+    var prevEl=document.getElementById('PREV_PROFS');
+    if(!prevEl)return;
+    if(profs2.length===0){prevEl.innerHTML='<div class="tsm tx2" style="padding:8px">Sin profesionales. Agrega uno con el botón "👷 Profesionales firmantes".</div>';return}
+    prevEl.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:8px">'+profs2.map(function(pr){
+      return '<div style="display:inline-flex;flex-direction:column;align-items:center;padding:8px 16px;background:var(--bg2);border-radius:var(--r);border:.5px solid var(--bd)">'+
+        '<div style="border-top:1px solid #555;min-width:150px;padding-top:4px;font-size:12px;text-align:center;margin-top:20px">'+
+        pr.nombre+'<br><span style="color:#555;font-size:11px">'+pr.profesion+'</span></div>'+
+        '</div>';
+    }).join('')+'</div>';
+  },0);
 }
 function saveConf(){
   var g=function(i){return(document.getElementById(i)||{}).value||''};
-  var cfg={empresa:g('CFE'),arquitecto:g('CFA'),email:g('CFEM'),telefono:g('CFT')};
-  wdb('config',cfg);
-  wdb('profNombre',g('CFU'+CU+'N'));
-  wdb('profProfesion',g('CFU'+CU+'PRF'));
-  wdb('profTelefono',g('CFU'+CU+'TEL'));
-  wdb('profEmail',g('CFU'+CU+'MAIL'));
+  var cfg=rdb('config',{});
+  var updated=Object.assign({},cfg,{empresa:g('CFE')});
+  wdb('config',updated);
   localStorage.setItem('arq_u1_UN',g('CFU1')||'Usuario 1');
   localStorage.setItem('arq_u2_UN',g('CFU2')||'Usuario 2');
-  document.getElementById('EMPNM').textContent=cfg.empresa;
+  document.getElementById('EMPNM').textContent=updated.empresa||'ARQgestión';
   updateUSel();
   alert('✓ Configuración guardada');
+  vConf();
 }
 function uploadLogo(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){
   localStorage.setItem('arq_logo',e.target.result);
