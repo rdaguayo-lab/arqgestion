@@ -1956,7 +1956,11 @@ function printPres(id){
     // Sección cuenta bancaria
     (bancoOpts?
       '<div class="sec-ttl">🏦 Cuenta bancaria (opcional)</div>'+
-      '<div id="BCO_OPTS" style="margin-bottom:12px">'+bancoOpts+'</div>'
+      '<div id="BCO_OPTS" style="margin-bottom:12px">'+bancoOpts+'</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;padding:8px 0 4px">'+
+      '<input type="checkbox" id="CHK_MONTO" checked style="width:16px;height:16px;accent-color:var(--txi)">'+
+      '<label for="CHK_MONTO" style="font-size:13px;cursor:pointer">Incluir <strong>monto a transferir</strong> destacado en PDF</label>'+
+      '</div>'
     :'')+
     '<div class="hr"></div>'+
     '<div style="display:flex;justify-content:space-between;align-items:center">'+
@@ -1982,9 +1986,12 @@ function doPrintPresConfirm(id){
   var bcoSel=document.querySelector('#BCO_OPTS input[name=bco_sel]:checked');
   var profIdx=profSel?parseInt(profSel.value):-2; // -2 = sin profesional, -1 = cfg, >=0 = lista
   var bcoIdx=bcoSel?parseInt(bcoSel.value):-1;
-  doPrintPres(id,profIdx,bcoIdx);
+  var chkMonto=document.getElementById('CHK_MONTO');
+  var mostrarMonto=chkMonto?chkMonto.checked:true;
+  doPrintPres(id,profIdx,bcoIdx,mostrarMonto);
 }
-function doPrintPres(id,profIdx,bancoIdx){
+function doPrintPres(id,profIdx,bancoIdx,mostrarMonto){
+  if(mostrarMonto===undefined)mostrarMonto=true;
   var ps=rdb('presupuestos',[]);var p=ps.find(function(x){return x.id===id});if(!p)return;
   var cfg=rdb('config',{empresa:'',arquitecto:'',profesion:'',email:'',telefono:''});
   var bancos=getBancos();
@@ -2031,14 +2038,60 @@ function doPrintPres(id,profIdx,bancoIdx){
   if(p.condPago)body+='<div style="font-size:12px;margin-top:12px;line-height:1.5"><strong>Condiciones de pago:</strong> '+p.condPago+'</div>';
   if(p.notaRecep)body+='<div style="font-size:12px;margin-top:8px;line-height:1.5">'+p.notaRecep+'</div>';
   if(banco){
-    body+='<div style="margin-top:20px;padding:12px 16px;background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;font-size:12px">';
-    body+='<div style="font-weight:700;margin-bottom:6px;font-size:13px">Datos para transferencia</div>';
+    // ── Detectar montos a transferir desde notas ──
+    var notaTexto=(p.nota||'').replace(/<[^>]+>/g,' ')+(p.condPago?' '+p.condPago:'')+(p.notaRecep?' '+p.notaRecep:'');
+    var montosTransf=[];
+    var rePct=/([\d]+)\s*%[^,.\n<]{0,60}?(inicio|principio|anticipo|comienzo|firma|contrato|t[eé]rmino|final|entrega|recepci[oó]n|definitiv)/gi;
+    var mm;
+    while((mm=rePct.exec(notaTexto))!==null){
+      var pct=parseFloat(mm[1]);
+      if(pct>0&&pct<=100){
+        var monto=Math.round(tot*(pct/100));
+        var label;
+        if(/inicio|principio|anticipo|comienzo|firma|contrato/i.test(mm[0])) label='Anticipo ('+pct+'%)';
+        else if(/t.rmino|final|entrega|recepci|definitiv/i.test(mm[0])) label='Al término ('+pct+'%)';
+        else label=pct+'% del total';
+        montosTransf.push({label:label,monto:monto,pct:pct});
+      }
+    }
+    // Fallback: cualquier % en las notas
+    if(!montosTransf.length){
+      var rePct2=/([\d]+)\s*%/g;
+      var pcts=[];
+      while((mm=rePct2.exec(notaTexto))!==null){pcts.push(parseFloat(mm[1]));}
+      pcts=pcts.filter(function(v){return v>0&&v<=100;});
+      pcts.forEach(function(pct){
+        montosTransf.push({label:pct+'% del total',monto:Math.round(tot*(pct/100)),pct:pct});
+      });
+    }
+
+    body+='<div style="margin-top:20px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">';
+
+    // Datos bancarios
+    body+='<div style="flex:1;min-width:200px;padding:12px 16px;background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;font-size:12px">';
+    body+='<div style="font-weight:700;margin-bottom:6px;font-size:13px">🏦 Datos para transferencia</div>';
     if(banco.nombre)body+='<div><strong>Cuenta:</strong> '+banco.nombre+'</div>';
     if(banco.banco)body+='<div><strong>Banco:</strong> '+banco.banco+'</div>';
     if(banco.tipoCuenta)body+='<div><strong>Tipo:</strong> '+banco.tipoCuenta+'</div>';
     if(banco.numCuenta)body+='<div><strong>N° cuenta:</strong> '+banco.numCuenta+'</div>';
     if(banco.rut)body+='<div><strong>RUT:</strong> '+banco.rut+'</div>';
     if(banco.email)body+='<div><strong>Email:</strong> '+banco.email+'</div>';
+    body+='</div>';
+
+    // Monto a transferir — efecto destacador azul/amarillo
+    if(montosTransf.length&&mostrarMonto){
+      body+='<div style="flex:1;min-width:190px;padding:12px 16px;background:#fffbe6;border:2px solid #f0c040;border-radius:6px;font-size:12px">';
+      body+='<div style="font-weight:700;margin-bottom:8px;font-size:13px;color:#1a3a6b">💳 Monto a transferir</div>';
+      montosTransf.forEach(function(mt){
+        body+='<div style="margin-bottom:8px;padding:6px 10px;border-radius:5px;border-left:4px solid #1a6bbf;background:#fff9db">'
+          +'<div style="font-size:10px;color:#666;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">'+mt.label+'</div>'
+          +'<div style="font-size:19px;font-weight:900;color:#1a3a6b;letter-spacing:-.5px;background:linear-gradient(90deg,#ffe066,#fff176);padding:3px 10px;border-radius:4px;display:inline-block;border:1.5px solid #f0c040">$'+Number(mt.monto).toLocaleString('es-CL')+'</div>'
+          +'</div>';
+      });
+      body+='<div style="font-size:10px;color:#888;margin-top:4px;border-top:1px dashed #e0c040;padding-top:5px">Total cotización: <strong style="color:#333">$'+Number(tot).toLocaleString('es-CL')+'</strong></div>';
+      body+='</div>';
+    }
+
     body+='</div>';
   }
   // ── Firmas ──
