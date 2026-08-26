@@ -235,6 +235,7 @@ function _arqGetAllData(){
   var planOwn=localStorage.getItem('arq_plan_own');if(planOwn)data.plan_own=planOwn;
   var bancosV=localStorage.getItem('arq_bancos');if(bancosV)data.bancos=bancosV;
   var notasV=localStorage.getItem('arq_notas_pred');if(notasV)data.notas_pred=notasV;
+  var notasPieV=localStorage.getItem('arq_notas_pie');if(notasPieV)data.notas_pie=notasPieV;
   var profsV=localStorage.getItem('arq_profesionales');if(profsV)data.profesionales=profsV;
   ['u1','u2'].forEach(function(u){
     keys.forEach(function(k){
@@ -254,6 +255,7 @@ function _arqApplyData(data){
   if(data.plan_own)localStorage.setItem('arq_plan_own',data.plan_own);
   if(data.bancos)localStorage.setItem('arq_bancos',data.bancos);
   if(data.notas_pred)localStorage.setItem('arq_notas_pred',data.notas_pred);
+  if(data.notas_pie)localStorage.setItem('arq_notas_pie',data.notas_pie);
   if(data.profesionales)localStorage.setItem('arq_profesionales',data.profesionales);
   ['u1','u2'].forEach(function(u){
     keys.forEach(function(k){
@@ -264,39 +266,69 @@ function _arqApplyData(data){
   if(data.logo){localStorage.setItem('arq_logo',data.logo);loadLogo();}
 }
 var _arqSkipNext=false;
+var _arqPushRetries=0;
+function _arqLocalBackup(payload){
+  // Respaldo local adicional (independiente de Firestore) por seguridad de datos
+  try{
+    var key='arq_backup_'+new Date().toISOString().slice(0,10);
+    localStorage.setItem(key,JSON.stringify(payload));
+    localStorage.setItem('arq_lastbackup_at',String(Date.now()));
+    var backups=Object.keys(localStorage).filter(function(k){return k.indexOf('arq_backup_')===0}).sort();
+    while(backups.length>5){localStorage.removeItem(backups.shift());}
+  }catch(e){}
+}
+function _arqScheduleRetry(){
+  _arqPushRetries=Math.min(_arqPushRetries+1,6);
+  var delay=Math.min(3000*Math.pow(2,_arqPushRetries-1),60000);
+  clearTimeout(window._arqRetryTimer);
+  window._arqRetryTimer=setTimeout(function(){_arqPushToFirebase();},delay);
+}
 function _arqPushToFirebase(){
   if(!window._arqSave)return;
   _arqSkipNext=true;
-  window._arqSave(_arqGetAllData()).then(function(){
+  var payload=_arqGetAllData();
+  payload._savedAt=Date.now();
+  window._arqSave(payload).then(function(){
+    _arqPushRetries=0;
     showSyncARQ('saved');
+    _arqLocalBackup(payload);
     setTimeout(function(){_arqSkipNext=false;},8000);
-  }).catch(function(){showSyncARQ('offline');_arqSkipNext=false;});
+  }).catch(function(e){
+    console.error('Error guardando ARQ:',e);
+    showSyncARQ('offline');
+    _arqSkipNext=false;
+    _arqScheduleRetry();
+  });
   showSyncARQ('saving');
 }
+window.addEventListener('online',function(){_arqPushToFirebase();});
 function showSyncARQ(st){
   var el=document.getElementById('arq-sync');
   if(!el)return;
   if(st==='saving'){el.textContent='☁ Guardando…';el.style.color='#f0a500';}
   else if(st==='saved'){el.textContent='✓ Sincronizado';el.style.color='#3b6d11';}
-  else if(st==='offline'){el.textContent='⚠ Sin conexión';el.style.color='#a32d2d';}
+  else if(st==='offline'){el.textContent='⚠ Sin conexión — reintentando…';el.style.color='#a32d2d';}
 }
 function _arqInitFirebase(){
   if(!window._arqLoad)return;
   showSyncARQ('saving');
   window._arqLoad().then(function(data){
-    if(data){_arqApplyData(data);}
+    if(data){_arqApplyData(data);_arqLocalBackup(data);}
     showSyncARQ('saved');
     // Escuchar cambios en tiempo real
     window._arqListen(function(data){
       if(_arqSkipNext){return;}
       var openModal=document.querySelector('.modal.active,.modal[style*="flex"]');
-      if(openModal){return;}
+      var active=document.activeElement;
+      var editing=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA'||active.isContentEditable);
+      if(openModal||editing){return;}
       _arqApplyData(data);
       go(CV);
       showSyncARQ('saved');
     });
-  }).catch(function(){showSyncARQ('offline');});
+  }).catch(function(){showSyncARQ('offline');_arqScheduleRetry();});
 }
+function arqForzarSync(){_arqPushToFirebase();}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function fmt(n){return Number(n||0).toLocaleString('es-CL')}
 function stEst(e){return{ejecucion:'En ejecución',terminado:'Terminado',porEjecutar:'Por ejecutar'}[e]||'Por ejecutar'}
@@ -1657,7 +1689,7 @@ function vPres(){
   var ps=rdb('presupuestos',[]);
   document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="editPres(null)">+ Nueva cotización</button>';
   var rows=ps.length===0?'<tr><td colspan="5"><div class="empty">Sin presupuestos</div></td></tr>':
-    ps.map(function(p,i){var tot=(p.items||[]).reduce(function(a,x){return a+parseFloat(x.valor||0)},0);return'<tr><td style="font-weight:600">'+String(i+1).padStart(3,'0')+'</td><td>'+(p.cliente||'—')+'</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.desc||'—')+'</td><td style="font-weight:600">$'+fmt(tot)+'</td><td>'+(p.fecha||'—')+'</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editPres(\''+p.id+'\')">Editar</button> <button class="btn btn-sm btn-s" onclick="printPres(\''+p.id+'\')">Imprimir PDF</button> <button class="btn btn-sm btn-d" onclick="delPres(\''+p.id+'\')">×</button></td></tr>'}).join('');
+    ps.map(function(p,i){var tot=(p.items||[]).reduce(function(a,x){return a+parseFloat(x.valor||0)},0);var cliLbl=(p.cliente||'—')+(p.esProspecto?' <span class="tsm" style="color:var(--txw)">(posible cliente)</span>':'');return'<tr><td style="font-weight:600">'+String(i+1).padStart(3,'0')+'</td><td>'+cliLbl+'</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.desc||'—')+'</td><td style="font-weight:600">$'+fmt(tot)+'</td><td>'+(p.fecha||'—')+'</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editPres(\''+p.id+'\')">Editar</button> <button class="btn btn-sm btn-s" onclick="printPres(\''+p.id+'\')">Imprimir PDF</button>'+(p.esProspecto?' <button class="btn btn-sm" onclick="convertirProspecto(\''+p.id+'\')">+ Cliente</button>':'')+' <button class="btn btn-sm btn-d" onclick="delPres(\''+p.id+'\')">×</button></td></tr>'}).join('');
   document.getElementById('MAIN').innerHTML='<div class="card"><div class="twrap"><table><thead><tr><th>N°</th><th>Cliente</th><th>Descripción</th><th>Total neto</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function delPres(id){if(!confirm('¿Eliminar?'))return;wdb('presupuestos',rdb('presupuestos',[]).filter(function(p){return p.id!==id}));vPres()}
@@ -1738,20 +1770,26 @@ function presRecalcTotal(){
   var tEl=document.getElementById('PRTOTAL');
   if(tEl)tEl.textContent='Total neto: $'+total.toLocaleString('es-CL');
 }
-// ── Notas predefinidas ──
-function getNotasPred(){try{return JSON.parse(localStorage.getItem('arq_notas_pred')||'[]')}catch(e){return[]}}
-function saveNotasPred(arr){localStorage.setItem('arq_notas_pred',JSON.stringify(arr));clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800)}
-function renderNotasPred(){
-  var notas=getNotasPred();
-  var c=document.getElementById('NOTAS_LIST');if(!c)return;
-  if(notas.length===0){c.innerHTML='<div class="tsm tx2">Sin notas guardadas aún. Guarda una desde una cotización usando el botón 💾.</div>';return}
-  c.innerHTML=notas.map(function(n,i){
+// ── Notas predefinidas (dos catálogos independientes: descripción de trabajos y notas al pie) ──
+// 'desc' reutiliza la clave histórica 'arq_notas_pred' para no perder notas ya guardadas.
+function _notasKey(cat){return cat==='pie'?'arq_notas_pie':'arq_notas_pred'}
+function getNotasPred(cat){try{return JSON.parse(localStorage.getItem(_notasKey(cat))||'[]')}catch(e){return[]}}
+function saveNotasPred(arr,cat){localStorage.setItem(_notasKey(cat),JSON.stringify(arr));clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800)}
+function _notasListBlock(cat,titulo){
+  var notas=getNotasPred(cat);
+  if(notas.length===0)return '<div class="tsm tx2 mb2">Sin notas guardadas en «'+titulo+'» aún. Guarda una desde una cotización usando el botón 💾.</div>';
+  return notas.map(function(n,i){
     var preview=n.replace(/<[^>]+>/g,'').substring(0,80)+(n.replace(/<[^>]+>/g,'').length>80?'…':'');
     return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border:.5px solid var(--bd);border-radius:var(--r);margin-bottom:6px">'+
       '<div style="flex:1;font-size:12px;color:var(--tx2)">'+preview+'</div>'+
-      '<button class="btn btn-sm btn-d" onclick="presEliminarNota('+i+')">×</button>'+
+      '<button class="btn btn-sm btn-d" onclick="presEliminarNota('+i+',\''+cat+'\')">×</button>'+
       '</div>';
   }).join('');
+}
+function renderNotasPred(){
+  var c=document.getElementById('NOTAS_LIST');if(!c)return;
+  c.innerHTML='<div class="tsm" style="font-weight:600;margin-bottom:4px">📝 Descripción de los trabajos</div>'+_notasListBlock('desc','Descripción de los trabajos')+
+    '<div class="tsm" style="font-weight:600;margin:10px 0 4px">📌 Nota al pie</div>'+_notasListBlock('pie','Nota al pie');
 }
 
 // ── Editor de texto con formato para presupuestos ──
@@ -1782,59 +1820,223 @@ function presCmd(id,cmd){
 }
 function presGetEditor(id){var el=document.getElementById(id);return el?el.innerHTML.trim():''}
 
-// ── Widget de notas guardadas ──
-function presNotasWidget(targetId,notas){
+// ── Widget de notas guardadas — menú desplegable compacto, por categoría ──
+function presNotasWidget(targetId,notas,cat){
   if(!notas||!notas.length)return '';
-  return '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">'+
-    notas.map(function(n,i){
-      var label=n.length>30?n.substring(0,30)+'…':n;
-      return '<span onclick="presInsertNota(\''+targetId+'\','+i+')" style="background:var(--bg2);border:.5px solid var(--bd);border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--tx2)" title="'+n+'">'+label+'</span>';
-    }).join('')+
-    '</div>';
+  var opts=notas.map(function(n,i){
+    var plain=n.replace(/<[^>]+>/g,'');
+    var label=plain.length>50?plain.substring(0,50)+'…':plain;
+    return '<option value="'+i+'">'+label+'</option>';
+  }).join('');
+  return '<select class="inp" style="margin-top:4px;font-size:12px" onchange="presInsertNota(\''+targetId+'\',this.value,\''+cat+'\');this.value=\'\'">'+
+    '<option value="">— Insertar nota guardada —</option>'+opts+'</select>';
 }
-function presInsertNota(targetId,idx){
-  var notas=getNotasPred();var nota=notas[idx];if(!nota)return;
+function presInsertNota(targetId,idx,cat){
+  if(idx==='')return;
+  var notas=getNotasPred(cat);var nota=notas[idx];if(!nota)return;
   var el=document.getElementById(targetId);if(!el)return;
   el.focus();
   if(el.innerHTML&&el.innerHTML.trim())el.innerHTML+='\n';
   document.execCommand('insertHTML',false,nota);
 }
-function presGuardarNota(sourceId){
+function presGuardarNota(sourceId,cat){
   var el=document.getElementById(sourceId);if(!el)return;
   var txt=el.innerText.trim();if(!txt){alert('Escribe algo primero');return}
-  var notas=getNotasPred();
+  var notas=getNotasPred(cat);
   if(notas.indexOf(txt)>=0){alert('Esta nota ya está guardada');return}
-  notas.push(txt);saveNotasPred(notas);
-  // Re-render widgets
+  notas.push(txt);saveNotasPred(notas,cat);
+  // Re-render widget
   var w=document.getElementById('NOTAW_'+sourceId);
-  if(w)w.innerHTML=presNotasWidget(sourceId,notas);
+  if(w)w.innerHTML=presNotasWidget(sourceId,notas,cat);
   alert('✓ Nota guardada');
 }
-function presEliminarNota(idx){
+function presEliminarNota(idx,cat){
   if(!confirm('¿Eliminar esta nota guardada?'))return;
-  var notas=getNotasPred();notas.splice(idx,1);saveNotasPred(notas);vConf();
+  var notas=getNotasPred(cat);notas.splice(idx,1);saveNotasPred(notas,cat);vConf();
+}
+
+// ── Cliente / posible cliente en cotización ──
+function presClienteCheck(){
+  var val=(document.getElementById('PRCLNOM')||{}).value||'';
+  var clis=window._prClis||[];
+  var m=clis.find(function(c){return (c.nombre||'').trim().toLowerCase()===val.trim().toLowerCase()});
+  var h=document.getElementById('PRCL');var tag=document.getElementById('PRCL_TAG');
+  if(h)h.value=m?m.id:'';
+  if(tag)tag.innerHTML=!val.trim()?'':(m?
+    '<span style="color:var(--txs)">✓ Cliente registrado en tu base de datos</span>':
+    '<span style="color:var(--txw)">◌ Posible cliente — no se guardará en tu base de datos de clientes hasta que lo confirmes</span>');
+}
+function convertirProspecto(id){
+  var ps=rdb('presupuestos',[]);var p=ps.find(function(x){return x.id===id});if(!p)return;
+  if(!confirm('¿Agregar "'+p.cliente+'" a tu base de datos de clientes?'))return;
+  var cs=rdb('clientes',[]);
+  var nc={id:uid(),nombre:p.cliente,rut:'',telefono:'',email:'',direccion:'',rolCliente:'cliente',observaciones:'',extraCampos:[]};
+  cs.push(nc);wdb('clientes',cs);
+  p.clienteId=nc.id;p.esProspecto=false;
+  wdb('presupuestos',ps);vPres();
+  alert('✓ Cliente agregado a tu base de datos. Puedes completar sus demás datos en la sección Clientes.');
+}
+
+// ── Condiciones de pago estructuradas (anticipo + resto, o anticipo + cuotas + saldo final) ──
+function pagoDefault(){
+  return {modo:'simple',anticipoPct:50,anticipoNota:'',anticipoFecha:'',finalLabel:'ingreso',finalNota:'',finalFecha:'',cuotas:[],imprimir:true};
+}
+function pagoFromLegacy(condPagoText){
+  var d=pagoDefault();
+  if(!condPagoText)return d;
+  var txt=condPagoText.replace(/<[^>]+>/g,' ');
+  var m=txt.match(/(\d+)\s*%/);
+  if(m)d.anticipoPct=parseFloat(m[1]);
+  return d;
+}
+function pagoLabelFinal(v){return v==='aprobacion'?'a la aprobación del expediente en la Dirección de Obras Municipales':'al ingreso del expediente a la Dirección de Obras Municipales'}
+function pagoItemExtras(prefix,nota,fecha,label){
+  var hasFecha=!!fecha;
+  return '<div class="fld"><input class="inp" id="'+prefix+'_NOTA" placeholder="'+label+'" value="'+(nota||'')+'"></div>'+
+    '<div class="fld" style="display:flex;align-items:center;gap:8px">'+
+    '<input type="checkbox" id="'+prefix+'_FCHK" onchange="pagoToggleFecha(\''+prefix+'\')" style="width:16px;height:16px;accent-color:var(--txi)"'+(hasFecha?' checked':'')+'>'+
+    '<label for="'+prefix+'_FCHK" style="font-size:12px;cursor:pointer">Establecer fecha</label>'+
+    '<input id="'+prefix+'_FECHA" class="inp" style="width:140px;'+(hasFecha?'':'display:none')+'" value="'+(fecha||'')+'" placeholder="dd-mm-aaaa">'+
+    '</div>';
+}
+function pagoToggleFecha(prefix){
+  var chk=document.getElementById(prefix+'_FCHK');var inp=document.getElementById(prefix+'_FECHA');
+  if(inp)inp.style.display=chk&&chk.checked?'':'none';
+}
+function pagoCuotaRow(i,c){
+  c=c||{};var prefix='PGC'+i;
+  return '<div class="pg-cuota-row" data-idx="'+i+'" style="background:var(--bg2);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;border:.5px solid var(--bd)">'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'+
+    '<span class="tsm tx2" style="min-width:56px">Cuota '+(i+1)+'</span>'+
+    '<input type="number" min="0" max="100" class="inp" style="width:70px" id="'+prefix+'_PCT" value="'+(c.pct!=null?c.pct:'')+'" oninput="pagoRecalc()" placeholder="%">'+
+    '<span class="tsm tx2">%</span>'+
+    '<button type="button" class="btn btn-sm btn-d" style="margin-left:auto" onclick="this.closest(\'.pg-cuota-row\').remove();pagoRecalc()">×</button>'+
+    '</div>'+
+    pagoItemExtras(prefix,c.nota,c.fecha,'Nota de la cuota (opcional)')+
+    '</div>';
+}
+function pagoAddCuota(){
+  var c=document.getElementById('PGCUOTAS');if(!c)return;
+  var i=c.querySelectorAll('.pg-cuota-row').length;
+  c.insertAdjacentHTML('beforeend',pagoCuotaRow(i,{}));
+  pagoRecalc();
+}
+function pagoSectionHTML(pago){
+  pago=pago||pagoDefault();
+  var h='<div class="fld"><label>Modalidad</label><select id="PGMODO" class="inp" onchange="pagoSetModo()">'+
+    '<option value="simple"'+(pago.modo!=='cuotas'?' selected':'')+'>Anticipo + saldo al ingreso/aprobación del expediente</option>'+
+    '<option value="cuotas"'+(pago.modo==='cuotas'?' selected':'')+'>Anticipo + cuotas + saldo final</option>'+
+    '</select></div>';
+  h+='<div class="fld"><label>Anticipo</label><div style="display:flex;gap:8px;align-items:center">'+
+    '<input id="PGANT_PCT" type="number" min="0" max="100" class="inp" style="width:80px" value="'+(pago.anticipoPct!=null?pago.anticipoPct:50)+'" oninput="pagoRecalc()">'+
+    '<span class="tsm tx2">% al inicio de los trabajos</span></div></div>';
+  h+=pagoItemExtras('PGANT',pago.anticipoNota,pago.anticipoFecha,'Nota del anticipo (opcional)');
+  if(pago.modo==='cuotas'){
+    var cuotasHTML=(pago.cuotas||[]).map(function(c,i){return pagoCuotaRow(i,c)}).join('');
+    h+='<div id="PGCUOTAS">'+cuotasHTML+'</div>';
+    h+='<button type="button" class="btn btn-sm" onclick="pagoAddCuota()">+ Agregar cuota</button>';
+    h+='<div class="hr"></div>';
+  } else {
+    h+='<div class="fld"><label>Momento del saldo final</label><select id="PGFINAL_LBL" class="inp">'+
+      '<option value="ingreso"'+(pago.finalLabel!=='aprobacion'?' selected':'')+'>Ingreso del expediente a la DOM</option>'+
+      '<option value="aprobacion"'+(pago.finalLabel==='aprobacion'?' selected':'')+'>Aprobación del expediente en la DOM</option>'+
+      '</select></div>';
+  }
+  h+='<div class="tsm" id="PGFINAL_PCT_DISP" style="margin-bottom:6px;font-weight:600"></div>';
+  h+=pagoItemExtras('PGFIN',pago.finalNota,pago.finalFecha,'Nota del saldo final (opcional)');
+  h+='<div id="PG_TOTAL" style="font-size:12px;margin-top:6px"></div>';
+  h+='<div class="fld" style="display:flex;align-items:center;gap:8px;margin-top:8px">'+
+    '<input type="checkbox" id="PGIMPRIMIR" style="width:16px;height:16px;accent-color:var(--txi)"'+(pago.imprimir!==false?' checked':'')+'>'+
+    '<label for="PGIMPRIMIR" style="font-size:13px;cursor:pointer">Incluir condiciones de pago detalladas en el PDF</label></div>';
+  return h;
+}
+function pagoReadState(){
+  var g=function(id){return (document.getElementById(id)||{}).value||''};
+  var modo=(document.getElementById('PGMODO')||{}).value||'simple';
+  var cuotas=Array.from(document.querySelectorAll('#PGCUOTAS .pg-cuota-row')).map(function(row){
+    var i=row.dataset.idx;
+    return {pct:parseFloat(g('PGC'+i+'_PCT'))||0,nota:g('PGC'+i+'_NOTA'),fecha:((document.getElementById('PGC'+i+'_FCHK')||{}).checked)?g('PGC'+i+'_FECHA'):''};
+  });
+  return {
+    modo:modo,
+    anticipoPct:parseFloat(g('PGANT_PCT'))||0,
+    anticipoNota:g('PGANT_NOTA'),
+    anticipoFecha:((document.getElementById('PGANT_FCHK')||{}).checked)?g('PGANT_FECHA'):'',
+    finalLabel:(document.getElementById('PGFINAL_LBL')||{}).value||'ingreso',
+    finalNota:g('PGFIN_NOTA'),
+    finalFecha:((document.getElementById('PGFIN_FCHK')||{}).checked)?g('PGFIN_FECHA'):'',
+    cuotas:cuotas,
+    imprimir:(document.getElementById('PGIMPRIMIR')||{}).checked!==false
+  };
+}
+function pagoSetModo(){
+  var st=pagoReadState();
+  document.getElementById('PAGO_BODY').innerHTML=pagoSectionHTML(st);
+  setTimeout(pagoRecalc,10);
+}
+function pagoRecalc(){
+  var g=function(id){return (document.getElementById(id)||{}).value||''};
+  var modo=(document.getElementById('PGMODO')||{}).value||'simple';
+  var ant=parseFloat(g('PGANT_PCT'))||0;
+  var sumCuotas=0;
+  if(modo==='cuotas'){
+    document.querySelectorAll('#PGCUOTAS .pg-cuota-row').forEach(function(row){
+      var i=row.dataset.idx;sumCuotas+=parseFloat(g('PGC'+i+'_PCT'))||0;
+    });
+  }
+  var finalPct=100-ant-sumCuotas;
+  var disp=document.getElementById('PGFINAL_PCT_DISP');
+  if(disp){
+    disp.textContent='Saldo final (automático): '+finalPct+'%';
+    disp.style.color=finalPct<0?'var(--txd)':'var(--txi)';
+  }
+  var totEl=document.getElementById('PG_TOTAL');
+  if(totEl){
+    var ok=finalPct>=0;
+    totEl.innerHTML=ok?('<span style="color:var(--txs)">✓ Suma 100% del total</span>'):('<span style="color:var(--txd)">⚠ El anticipo + cuotas superan el 100% — ajusta los porcentajes</span>');
+  }
+}
+function pagoBuildItems(pago,tot){
+  var items=[];
+  items.push({label:'Anticipo',fraseLabel:'al inicio de los trabajos',pct:pago.anticipoPct||0,nota:pago.anticipoNota,fecha:pago.anticipoFecha});
+  if(pago.modo==='cuotas'){
+    (pago.cuotas||[]).forEach(function(c,i){items.push({label:'Cuota '+(i+1),fraseLabel:'en la cuota '+(i+1),pct:c.pct||0,nota:c.nota,fecha:c.fecha})});
+    var sum=items.reduce(function(a,it){return a+it.pct},0);
+    items.push({label:'Saldo final',fraseLabel:pagoLabelFinal('ingreso'),pct:100-sum,nota:pago.finalNota,fecha:pago.finalFecha});
+  } else {
+    items.push({label:'Saldo final',fraseLabel:pagoLabelFinal(pago.finalLabel),pct:100-(pago.anticipoPct||0),nota:pago.finalNota,fecha:pago.finalFecha});
+  }
+  items.forEach(function(it){it.monto=Math.round(tot*(it.pct/100))});
+  return items;
 }
 
 function editPres(id){
   var ps=rdb('presupuestos',[]);var clis=rdb('clientes',[]);
   var cfg=rdb('config',{empresa:'',arquitecto:'',email:''});
-  var notas=getNotasPred();
+  var notasD=getNotasPred('desc');var notasP=getNotasPred('pie');
   var p=id?ps.find(function(x){return x.id===id}):null;
   if(!p)p={id:uid(),clienteId:'',cliente:'',desc:'',items:[{desc:'',valor:0,tipo:'simple'}],nota:'Valor neto, no incluye IVA.',fecha:new Date().toLocaleDateString('es-CL'),firma:cfg.arquitecto||'',profesion:cfg.profesion||'Arquitecto',firmaCliente:true};
   var isNew=!id;
-  var cliOpts=clis.map(function(c){return'<option value="'+c.id+'"'+(p.clienteId===c.id?' selected':'')+'>'+c.nombre+'</option>'}).join('');
+  window._prClis=clis;
+  var cliOptsDL=clis.map(function(c){return'<option value="'+c.nombre+'">'}).join('');
   var itemsH=p.items.map(function(it,i){return buildItemRow(i,it)}).join('');
-  var notasWidget=notas.length?'<div id="NOTAW_PRDE" style="margin-top:4px"><div class="tsm tx2" style="margin-bottom:3px">Notas guardadas (clic para insertar):</div>'+presNotasWidget('PRDE',notas)+'</div>':'';
-  var notasWidgetN=notas.length?'<div id="NOTAW_PRNO" style="margin-top:4px"><div class="tsm tx2" style="margin-bottom:3px">Notas guardadas:</div>'+presNotasWidget('PRNO',notas)+'</div>':'';
+  var notasWidget=notasD.length?'<div id="NOTAW_PRDE" style="margin-top:4px">'+presNotasWidget('PRDE',notasD,'desc')+'</div>':'';
+  var notasWidgetN=notasP.length?'<div id="NOTAW_PRNO" style="margin-top:4px">'+presNotasWidget('PRNO',notasP,'pie')+'</div>':'';
+  var pagoInicial=p.pago||pagoFromLegacy(p.condPago);
   document.getElementById('MOD').innerHTML=
     '<div class="mov" onclick="if(event.target===this)closeMod()"><div class="modal">'+
     '<div class="mhdr"><div class="mttl">Presupuesto / Cotización</div><button class="xbtn" onclick="closeMod()">×</button></div>'+
-    '<div class="g2"><div class="fld"><label>Cliente</label><select id="PRCL" style="width:100%"><option value="">— Seleccionar —</option>'+cliOpts+'</select></div>'+
+    '<div class="g2"><div class="fld"><label>Cliente <span class="tsm tx2" style="font-weight:400">(elige uno guardado o escribe un nombre nuevo)</span></label>'+
+    '<input id="PRCLNOM" list="PRCL_DL" class="inp" style="width:100%" value="'+(p.cliente||'')+'" placeholder="Nombre del cliente o posible cliente" oninput="presClienteCheck()">'+
+    '<datalist id="PRCL_DL">'+cliOptsDL+'</datalist>'+
+    '<input type="hidden" id="PRCL" value="'+(p.clienteId||'')+'">'+
+    '<div id="PRCL_TAG" class="tsm" style="margin-top:3px"></div>'+
+    '</div>'+
     '<div class="fld"><label>Fecha</label><input id="PRFE" value="'+(p.fecha||'')+'"></div></div>'+
     // Descripción con editor
     '<div class="fld"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
     '<label style="margin:0">Descripción de los trabajos</label>'+
-    '<button type="button" onclick="presGuardarNota(\'PRDE\')" class="btn btn-sm" style="font-size:11px">💾 Guardar como nota</button>'+
+    '<button type="button" onclick="presGuardarNota(\'PRDE\',\'desc\')" class="btn btn-sm" style="font-size:11px">💾 Guardar como nota</button>'+
     '</div>'+
     presEditorHTML('PRDE',p.desc||'',80)+
     notasWidget+
@@ -1853,7 +2055,7 @@ function editPres(id){
     // Nota al pie con editor
     '<div class="fld"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
     '<label style="margin:0">Nota al pie</label>'+
-    '<button type="button" onclick="presGuardarNota(\'PRNO\')" class="btn btn-sm" style="font-size:11px">💾 Guardar como nota</button>'+
+    '<button type="button" onclick="presGuardarNota(\'PRNO\',\'pie\')" class="btn btn-sm" style="font-size:11px">💾 Guardar como nota</button>'+
     '</div>'+
     presEditorHTML('PRNO',p.nota||'Valor neto, no incluye IVA.',60)+
     notasWidgetN+
@@ -1866,7 +2068,7 @@ function editPres(id){
     '<div style="background:var(--bgi);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--txi);margin-top:6px">👷 El profesional firmante se elige al momento de <strong>imprimir el PDF</strong>, desde los profesionales guardados en Configuración.</div>'+
     '<div class="hr"></div>'+
     '<div class="sec-ttl">Condiciones de pago</div>'+
-    '<div class="fld">'+presEditorHTML('PRCOND',p.condPago||'50% al inicio de los trabajos y 50% al ingreso del expediente a la Dirección de Obras Municipales.',60)+'</div>'+
+    '<div id="PAGO_BODY">'+pagoSectionHTML(pagoInicial)+'</div>'+
     '<div class="fld"><label>Nota recepción definitiva (opcional)</label>'+presEditorHTML('PRRECEP',p.notaRecep||'',50)+'</div>'+
     '<div class="hr"></div>'+
     '<div style="background:var(--bgi);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--txi)">🏦 Los datos de transferencia se eligen al momento de <strong>imprimir el PDF</strong>, desde las cuentas guardadas en Configuración.</div>'+
@@ -1874,7 +2076,8 @@ function editPres(id){
     '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn" onclick="closeMod()">Cancelar</button><button class="btn btn-p" onclick="savePres(\''+p.id+'\','+isNew+')">Guardar</button></div>'+
     '</div></div>';
   setTimeout(presRecalcTotal,50);
-  setTimeout(function(){var s=document.getElementById('PRCL');if(s)s.value=p.clienteId||''},10);
+  setTimeout(pagoRecalc,50);
+  setTimeout(presClienteCheck,10);
 }
 function addItemPres(tipo){
   var c=document.getElementById('PRIT');
@@ -1885,7 +2088,8 @@ function addItemPres(tipo){
 function savePres(id,isNew){
   var ps=rdb('presupuestos',[]);var clis=rdb('clientes',[]);
   var g=function(i){return(document.getElementById(i)||{}).value||''};
-  var cid=g('PRCL');var cl=clis.find(function(c){return c.id===cid});
+  var cid=g('PRCL');var cl=cid?clis.find(function(c){return c.id===cid}):null;
+  var clienteNom=g('PRCLNOM').trim();
   var firmaCliente=(document.getElementById('PRFIRMA')||{}).checked!==false;
   var rows=document.querySelectorAll('#PRIT .pres-row');
   var items=Array.from(rows).map(function(row){
@@ -1904,11 +2108,11 @@ function savePres(id,isNew){
       return{desc:desc,tipo:'simple',valor:val};
     }
   }).filter(Boolean);
-  var upd={id:id,clienteId:cid,cliente:cl?cl.nombre:'',
+  var upd={id:id,clienteId:cid,cliente:cl?cl.nombre:clienteNom,esProspecto:(!cid&&!!clienteNom),
     desc:presGetEditor('PRDE'),items:items,
     nota:presGetEditor('PRNO'),
     firmaCliente:firmaCliente,fecha:g('PRFE'),
-    condPago:presGetEditor('PRCOND'),
+    pago:pagoReadState(),
     notaRecep:presGetEditor('PRRECEP')};
   if(isNew)ps.push(upd);else{var i=ps.findIndex(function(x){return x.id===id});if(i>=0)ps[i]=upd}
   wdb('presupuestos',ps);closeMod();vPres();
@@ -2035,34 +2239,44 @@ function doPrintPres(id,profIdx,bancoIdx,mostrarMonto){
   }
   body+='</tbody></table>';
   if(p.nota)body+='<div style="color:#666;font-size:11px;margin-top:14px;border-top:1px solid #ddd;padding-top:10px;line-height:1.5">'+p.nota+'</div>';
-  if(p.condPago)body+='<div style="font-size:12px;margin-top:12px;line-height:1.5"><strong>Condiciones de pago:</strong> '+p.condPago+'</div>';
-  if(p.notaRecep)body+='<div style="font-size:12px;margin-top:8px;line-height:1.5">'+p.notaRecep+'</div>';
-  if(banco){
-    // ── Detectar montos a transferir desde notas ──
-    var notaTexto=(p.nota||'').replace(/<[^>]+>/g,' ')+(p.condPago?' '+p.condPago:'')+(p.notaRecep?' '+p.notaRecep:'');
-    var montosTransf=[];
-    var rePct=/([\d]+)\s*%[^,.\n<]{0,60}?(inicio|principio|anticipo|comienzo|firma|contrato|t[eé]rmino|final|entrega|recepci[oó]n|definitiv)/gi;
-    var mm;
-    while((mm=rePct.exec(notaTexto))!==null){
-      var pct=parseFloat(mm[1]);
-      if(pct>0&&pct<=100){
-        var monto=Math.round(tot*(pct/100));
-        var label;
-        if(/inicio|principio|anticipo|comienzo|firma|contrato/i.test(mm[0])) label='Anticipo ('+pct+'%)';
-        else if(/t.rmino|final|entrega|recepci|definitiv/i.test(mm[0])) label='Al término ('+pct+'%)';
-        else label=pct+'% del total';
-        montosTransf.push({label:label,monto:monto,pct:pct});
-      }
+
+  // ── Condiciones de pago: usa el modelo estructurado si existe; si no, cae al texto libre antiguo ──
+  var pago=p.pago;
+  var pagoItems=pago?pagoBuildItems(pago,tot):[];
+  if(pago){
+    if(pago.imprimir!==false){
+      var frasePago=pagoItems.map(function(it){
+        var s=it.pct+'% '+it.fraseLabel;
+        if(it.nota)s+=' ('+it.nota+')';
+        if(it.fecha)s+=' — fecha: '+it.fecha;
+        return s;
+      }).join('; ');
+      body+='<div style="font-size:12px;margin-top:12px;line-height:1.5"><strong>Condiciones de pago:</strong> '+frasePago+'.</div>';
     }
-    // Fallback: cualquier % en las notas
-    if(!montosTransf.length){
-      var rePct2=/([\d]+)\s*%/g;
-      var pcts=[];
-      while((mm=rePct2.exec(notaTexto))!==null){pcts.push(parseFloat(mm[1]));}
-      pcts=pcts.filter(function(v){return v>0&&v<=100;});
-      pcts.forEach(function(pct){
-        montosTransf.push({label:pct+'% del total',monto:Math.round(tot*(pct/100)),pct:pct});
+  } else if(p.condPago){
+    body+='<div style="font-size:12px;margin-top:12px;line-height:1.5"><strong>Condiciones de pago:</strong> '+p.condPago+'</div>';
+  }
+  if(p.notaRecep)body+='<div style="font-size:12px;margin-top:8px;line-height:1.5">'+p.notaRecep+'</div>';
+
+  if(banco){
+    // ── Montos a transferir: directamente desde las condiciones de pago estructuradas ──
+    var montosTransf=[];
+    if(pago){
+      montosTransf=pagoItems.filter(function(it){return it.pct>0}).map(function(it){
+        return {label:it.label+' ('+it.pct+'%)'+(it.fecha?' · '+it.fecha:''),monto:it.monto,nota:it.nota};
       });
+    } else if(p.condPago){
+      // Legado: detectar % desde el texto libre de presupuestos antiguos sin migrar
+      var notaTexto=(p.nota||'').replace(/<[^>]+>/g,' ')+' '+p.condPago+(p.notaRecep?' '+p.notaRecep:'');
+      var rePct=/([\d]+)\s*%[^,.\n<]{0,60}?(inicio|principio|anticipo|comienzo|firma|contrato|t[eé]rmino|final|entrega|recepci[oó]n|definitiv)/gi;
+      var mm;
+      while((mm=rePct.exec(notaTexto))!==null){
+        var pct=parseFloat(mm[1]);
+        if(pct>0&&pct<=100){
+          var label=/inicio|principio|anticipo|comienzo|firma|contrato/i.test(mm[0])?'Anticipo ('+pct+'%)':(/t.rmino|final|entrega|recepci|definitiv/i.test(mm[0])?'Al término ('+pct+'%)':pct+'% del total');
+          montosTransf.push({label:label,monto:Math.round(tot*(pct/100))});
+        }
+      }
     }
 
     body+='<div style="margin-top:20px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">';
@@ -2086,6 +2300,7 @@ function doPrintPres(id,profIdx,bancoIdx,mostrarMonto){
         body+='<div style="margin-bottom:8px;padding:6px 10px;border-radius:5px;border-left:4px solid #1a6bbf;background:#fff9db">'
           +'<div style="font-size:10px;color:#666;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">'+mt.label+'</div>'
           +'<div style="font-size:19px;font-weight:900;color:#1a3a6b;letter-spacing:-.5px;background:linear-gradient(90deg,#ffe066,#fff176);padding:3px 10px;border-radius:4px;display:inline-block;border:1.5px solid #f0c040">$'+Number(mt.monto).toLocaleString('es-CL')+'</div>'
+          +(mt.nota?'<div style="font-size:10px;color:#555;margin-top:3px">'+mt.nota+'</div>':'')
           +'</div>';
       });
       body+='<div style="font-size:10px;color:#888;margin-top:4px;border-top:1px dashed #e0c040;padding-top:5px">Total cotización: <strong style="color:#333">$'+Number(tot).toLocaleString('es-CL')+'</strong></div>';
@@ -2343,14 +2558,23 @@ function vConf(){
     '<div class="tsm tx2 mb2">Todos los profesionales disponibles para elegir al imprimir:</div>'+
     '<div id="PREV_PROFS"></div>'+
     '</div>'+
-    '<div class="card"><div class="sec-ttl">Exportar / Importar datos</div>'+
-    '<div class="tsm tx2 mb2">Los datos se guardan en este navegador. Exporta para hacer backup o trasladarlos.</div>'+
+    '<div class="card"><div class="sec-ttl">☁ Respaldo y sincronización</div>'+
+    '<div class="tsm tx2 mb2" id="ARQ_BACKUP_INFO">Los datos se sincronizan automáticamente a la nube y además se guarda un respaldo local en este navegador.</div>'+
+    '<button class="btn btn-sm mt1" onclick="arqForzarSync()">☁ Forzar sincronización ahora</button>'+
+    '</div>'+
+    '<div class="card mt2"><div class="sec-ttl">Exportar / Importar datos</div>'+
+    '<div class="tsm tx2 mb2">Exporta periódicamente un archivo de respaldo para máxima seguridad.</div>'+
     '<button class="btn btn-sm mt1" onclick="exportData()">📤 Exportar</button> '+
     '<label class="btn btn-sm" style="cursor:pointer">📥 Importar<input type="file" accept=".json" onchange="importData(this)" style="display:none"></label>'+
     '</div>'+
     '</div>'+
     '</div>';
   setTimeout(function(){
+    var bkInfo=document.getElementById('ARQ_BACKUP_INFO');
+    if(bkInfo){
+      var lb=localStorage.getItem('arq_lastbackup_at');
+      bkInfo.textContent=lb?'Último respaldo local: '+new Date(parseInt(lb)).toLocaleString('es-CL'):'Aún no hay respaldo local registrado.';
+    }
     renderBancos();renderNotasPred();renderProfesionales();
     var profs2=getProfesionales();
     // Membrete preview — solo el primero como ejemplo
@@ -2422,10 +2646,16 @@ function exportData(){
   });
   data.logo=localStorage.getItem('arq_logo');
   data.u1_UN=localStorage.getItem('arq_u1_UN');data.u2_UN=localStorage.getItem('arq_u2_UN');
+  data.bancos=localStorage.getItem('arq_bancos');
+  data.notas_pred=localStorage.getItem('arq_notas_pred');
+  data.notas_pie=localStorage.getItem('arq_notas_pie');
+  data.profesionales=localStorage.getItem('arq_profesionales');
+  data.plan_st=localStorage.getItem('arq_plan_st');
+  data.plan_own=localStorage.getItem('arq_plan_own');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download='arqgestion_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();
 }
-function importData(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){try{var d=JSON.parse(e.target.result);['proyectos','clientes','tramites','presupuestos','config'].forEach(function(k){if(d['u1_'+k])localStorage.setItem('arq_u1_'+k,JSON.stringify(d['u1_'+k]));if(d['u2_'+k])localStorage.setItem('arq_u2_'+k,JSON.stringify(d['u2_'+k]))});if(d.logo)localStorage.setItem('arq_logo',d.logo);if(d.u1_UN)localStorage.setItem('arq_u1_UN',d.u1_UN);if(d.u2_UN)localStorage.setItem('arq_u2_UN',d.u2_UN);alert('✓ Datos importados correctamente');go(CV)}catch(err){alert('Error al importar. Verifica el archivo.')}};r.readAsText(f)}
+function importData(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){try{var d=JSON.parse(e.target.result);['proyectos','clientes','tramites','presupuestos','config'].forEach(function(k){if(d['u1_'+k])localStorage.setItem('arq_u1_'+k,JSON.stringify(d['u1_'+k]));if(d['u2_'+k])localStorage.setItem('arq_u2_'+k,JSON.stringify(d['u2_'+k]))});if(d.logo)localStorage.setItem('arq_logo',d.logo);if(d.u1_UN)localStorage.setItem('arq_u1_UN',d.u1_UN);if(d.u2_UN)localStorage.setItem('arq_u2_UN',d.u2_UN);if(d.bancos)localStorage.setItem('arq_bancos',d.bancos);if(d.notas_pred)localStorage.setItem('arq_notas_pred',d.notas_pred);if(d.notas_pie)localStorage.setItem('arq_notas_pie',d.notas_pie);if(d.profesionales)localStorage.setItem('arq_profesionales',d.profesionales);if(d.plan_st)localStorage.setItem('arq_plan_st',d.plan_st);if(d.plan_own)localStorage.setItem('arq_plan_own',d.plan_own);alert('✓ Datos importados correctamente');_arqPushToFirebase();go(CV)}catch(err){alert('Error al importar. Verifica el archivo.')}};r.readAsText(f)}
 
 
 // ── Client inline create/edit ──
