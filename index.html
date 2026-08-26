@@ -236,7 +236,9 @@ function _arqGetAllData(){
   var bancosV=localStorage.getItem('arq_bancos');if(bancosV)data.bancos=bancosV;
   var notasV=localStorage.getItem('arq_notas_pred');if(notasV)data.notas_pred=notasV;
   var notasPieV=localStorage.getItem('arq_notas_pie');if(notasPieV)data.notas_pie=notasPieV;
+  var notasPagoV=localStorage.getItem('arq_notas_pago');if(notasPagoV)data.notas_pago=notasPagoV;
   var profsV=localStorage.getItem('arq_profesionales');if(profsV)data.profesionales=profsV;
+  var itemsPredV=localStorage.getItem('arq_items_pred');if(itemsPredV)data.items_pred=itemsPredV;
   ['u1','u2'].forEach(function(u){
     keys.forEach(function(k){
       var v=localStorage.getItem('arq_'+u+'_'+k);
@@ -256,7 +258,9 @@ function _arqApplyData(data){
   if(data.bancos)localStorage.setItem('arq_bancos',data.bancos);
   if(data.notas_pred)localStorage.setItem('arq_notas_pred',data.notas_pred);
   if(data.notas_pie)localStorage.setItem('arq_notas_pie',data.notas_pie);
+  if(data.notas_pago)localStorage.setItem('arq_notas_pago',data.notas_pago);
   if(data.profesionales)localStorage.setItem('arq_profesionales',data.profesionales);
+  if(data.items_pred)localStorage.setItem('arq_items_pred',data.items_pred);
   ['u1','u2'].forEach(function(u){
     keys.forEach(function(k){
       if(data[u+'_'+k]!==undefined)localStorage.setItem('arq_'+u+'_'+k,data[u+'_'+k]);
@@ -1326,8 +1330,16 @@ function vClis(){
   var cs=rdb('clientes',[]);
   document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="editCli(null)">+ Nuevo cliente</button>';
   var rows=cs.length===0?'<tr><td colspan="6"><div class="empty">Sin clientes</div></td></tr>':
-    cs.map(function(c){var rl=c.rolCliente==='propietario'?'Propietario':c.rolCliente==='ambos'?'Cliente/Prop.':'Solo cliente';var rb=c.rolCliente==='propietario'?'b-ejecucion':c.rolCliente==='ambos'?'b-ejecutar':'b-posterior';return'<tr><td style="font-weight:600">'+(c.nombre||'—')+'</td><td>'+(c.rut||'—')+'</td><td>'+(c.telefono||'—')+'</td><td>'+(c.email||'—')+'</td><td><span class="badge '+rb+'">'+rl+'</span></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editCli(\''+c.id+'\')">Editar</button> <button class="btn btn-sm btn-d" onclick="delCli(\''+c.id+'\')">Eliminar</button></td></tr>'}).join('');
+    cs.map(function(c){var rl=c.rolCliente==='propietario'?'Propietario':c.rolCliente==='ambos'?'Cliente/Prop.':'Solo cliente';var rb=c.rolCliente==='propietario'?'b-ejecucion':c.rolCliente==='ambos'?'b-ejecutar':'b-posterior';var nomLbl=(c.nombre||'—')+(c.esProspecto?' <span class="tsm" style="color:var(--txw)">(posible cliente)</span>':'');return'<tr><td style="font-weight:600">'+nomLbl+'</td><td>'+(c.rut||'—')+'</td><td>'+(c.telefono||'—')+'</td><td>'+(c.email||'—')+'</td><td><span class="badge '+rb+'">'+rl+'</span></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editCli(\''+c.id+'\')">Editar</button>'+(c.esProspecto?' <button class="btn btn-sm" onclick="confirmarClienteBD(\''+c.id+'\')">✓ Confirmar</button>':'')+' <button class="btn btn-sm btn-d" onclick="delCli(\''+c.id+'\')">Eliminar</button></td></tr>'}).join('');
   document.getElementById('MAIN').innerHTML='<div class="card"><div class="twrap"><table><thead><tr><th>Nombre</th><th>RUT</th><th>Teléfono</th><th>Email</th><th>Rol</th><th>Acciones</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function confirmarClienteBD(id){
+  var cs=rdb('clientes',[]);var c=cs.find(function(x){return x.id===id});if(!c)return;
+  c.esProspecto=false;wdb('clientes',cs);
+  var ps=rdb('presupuestos',[]);var changed=false;
+  ps.forEach(function(p){if(p.clienteId===id&&p.esProspecto){p.esProspecto=false;changed=true;}});
+  if(changed)wdb('presupuestos',ps);
+  vClis();
 }
 function delCli(id){if(!confirm('¿Eliminar?'))return;wdb('clientes',rdb('clientes',[]).filter(function(c){return c.id!==id}));vClis()}
 function editCli(id){
@@ -1356,7 +1368,8 @@ function addExtCli(){var lbl=prompt('Nombre del campo:');if(!lbl)return;var c=do
 function saveCli(id,isNew){
   var cs=rdb('clientes',[]);var g=function(i){return(document.getElementById(i)||{}).value||''};
   var ext=Array.from(document.querySelectorAll('#CLEXT .row')).map(function(r){return{label:(r.querySelector('label')||{}).textContent||'',valor:(r.querySelector('input[data-lbl]')||{}).value||''}});
-  var upd={id:id,nombre:g('CLN'),rut:g('CLR'),telefono:g('CLT'),email:g('CLE'),direccion:g('CLD'),rolCliente:g('CLRL')||'cliente',observaciones:g('CLO'),extraCampos:ext};
+  var prev=id?cs.find(function(x){return x.id===id}):null;
+  var upd={id:id,nombre:g('CLN'),rut:g('CLR'),telefono:g('CLT'),email:g('CLE'),direccion:g('CLD'),rolCliente:g('CLRL')||'cliente',observaciones:g('CLO'),extraCampos:ext,esProspecto:prev?prev.esProspecto:false};
   if(isNew)cs.push(upd);else{var i=cs.findIndex(function(x){return x.id===id});if(i>=0)cs[i]=upd}
   wdb('clientes',cs);closeMod();vClis();
 }
@@ -1689,7 +1702,7 @@ function vPres(){
   var ps=rdb('presupuestos',[]);
   document.getElementById('PACT').innerHTML='<button class="btn btn-p btn-sm" onclick="editPres(null)">+ Nueva cotización</button>';
   var rows=ps.length===0?'<tr><td colspan="5"><div class="empty">Sin presupuestos</div></td></tr>':
-    ps.map(function(p,i){var tot=(p.items||[]).reduce(function(a,x){return a+parseFloat(x.valor||0)},0);var cliLbl=(p.cliente||'—')+(p.esProspecto?' <span class="tsm" style="color:var(--txw)">(posible cliente)</span>':'');return'<tr><td style="font-weight:600">'+String(i+1).padStart(3,'0')+'</td><td>'+cliLbl+'</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.desc||'—')+'</td><td style="font-weight:600">$'+fmt(tot)+'</td><td>'+(p.fecha||'—')+'</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editPres(\''+p.id+'\')">Editar</button> <button class="btn btn-sm btn-s" onclick="printPres(\''+p.id+'\')">Imprimir PDF</button>'+(p.esProspecto?' <button class="btn btn-sm" onclick="convertirProspecto(\''+p.id+'\')">+ Cliente</button>':'')+' <button class="btn btn-sm btn-d" onclick="delPres(\''+p.id+'\')">×</button></td></tr>'}).join('');
+    ps.map(function(p,i){var tot=(p.items||[]).reduce(function(a,x){return a+parseFloat(x.valor||0)},0);var cliLbl=(p.cliente||'—')+(p.esProspecto?' <span class="tsm" style="color:var(--txw)">(posible cliente)</span>':'');return'<tr><td style="font-weight:600">'+String(i+1).padStart(3,'0')+'</td><td>'+cliLbl+'</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.desc||'—')+'</td><td style="font-weight:600">$'+fmt(tot)+'</td><td>'+(p.fecha||'—')+'</td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="editPres(\''+p.id+'\')">Editar</button> <button class="btn btn-sm btn-s" onclick="printPres(\''+p.id+'\')">Imprimir PDF</button>'+(p.esProspecto?' <button class="btn btn-sm" onclick="confirmarProspecto(\''+p.id+'\')">✓ Confirmar cliente</button>':'')+' <button class="btn btn-sm btn-d" onclick="delPres(\''+p.id+'\')">×</button></td></tr>'}).join('');
   document.getElementById('MAIN').innerHTML='<div class="card"><div class="twrap"><table><thead><tr><th>N°</th><th>Cliente</th><th>Descripción</th><th>Total neto</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function delPres(id){if(!confirm('¿Eliminar?'))return;wdb('presupuestos',rdb('presupuestos',[]).filter(function(p){return p.id!==id}));vPres()}
@@ -1726,6 +1739,7 @@ function buildItemRow(i,it){
     '<option value="simple"'+(tipo==='simple'?' selected':'')+'>Valor fijo</option>'+
     '<option value="unitario"'+(tipo==='unitario'?' selected':'')+'>Por unidad</option>'+
     '</select>'+
+    '<button type="button" class="btn btn-sm" onclick="presGuardarItem('+i+')" title="Guardar como ítem reutilizable" style="flex-shrink:0">💾</button>'+
     '<button class="btn btn-sm btn-d" onclick="this.closest(\'.pres-row\').remove();presRecalcTotal()" style="flex-shrink:0">×</button>'+
     '</div>'+
     // Fila 2 SIMPLE: solo valor
@@ -1772,7 +1786,7 @@ function presRecalcTotal(){
 }
 // ── Notas predefinidas (dos catálogos independientes: descripción de trabajos y notas al pie) ──
 // 'desc' reutiliza la clave histórica 'arq_notas_pred' para no perder notas ya guardadas.
-function _notasKey(cat){return cat==='pie'?'arq_notas_pie':'arq_notas_pred'}
+function _notasKey(cat){return cat==='pie'?'arq_notas_pie':(cat==='pago'?'arq_notas_pago':'arq_notas_pred')}
 function getNotasPred(cat){try{return JSON.parse(localStorage.getItem(_notasKey(cat))||'[]')}catch(e){return[]}}
 function saveNotasPred(arr,cat){localStorage.setItem(_notasKey(cat),JSON.stringify(arr));clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800)}
 function _notasListBlock(cat,titulo){
@@ -1789,7 +1803,8 @@ function _notasListBlock(cat,titulo){
 function renderNotasPred(){
   var c=document.getElementById('NOTAS_LIST');if(!c)return;
   c.innerHTML='<div class="tsm" style="font-weight:600;margin-bottom:4px">📝 Descripción de los trabajos</div>'+_notasListBlock('desc','Descripción de los trabajos')+
-    '<div class="tsm" style="font-weight:600;margin:10px 0 4px">📌 Nota al pie</div>'+_notasListBlock('pie','Nota al pie');
+    '<div class="tsm" style="font-weight:600;margin:10px 0 4px">📌 Nota al pie</div>'+_notasListBlock('pie','Nota al pie')+
+    '<div class="tsm" style="font-weight:600;margin:10px 0 4px">💳 Condiciones de pago (anticipo, cuotas, saldo final)</div>'+_notasListBlock('pago','Condiciones de pago');
 }
 
 // ── Editor de texto con formato para presupuestos ──
@@ -1862,19 +1877,17 @@ function presClienteCheck(){
   var m=clis.find(function(c){return (c.nombre||'').trim().toLowerCase()===val.trim().toLowerCase()});
   var h=document.getElementById('PRCL');var tag=document.getElementById('PRCL_TAG');
   if(h)h.value=m?m.id:'';
-  if(tag)tag.innerHTML=!val.trim()?'':(m?
+  if(tag)tag.innerHTML=!val.trim()?'':(m&&!m.esProspecto?
     '<span style="color:var(--txs)">✓ Cliente registrado en tu base de datos</span>':
-    '<span style="color:var(--txw)">◌ Posible cliente — no se guardará en tu base de datos de clientes hasta que lo confirmes</span>');
+    '<span style="color:var(--txw)">◌ Posible cliente — se guardará en tu base de datos como "posible cliente" al guardar esta cotización</span>');
 }
-function convertirProspecto(id){
-  var ps=rdb('presupuestos',[]);var p=ps.find(function(x){return x.id===id});if(!p)return;
-  if(!confirm('¿Agregar "'+p.cliente+'" a tu base de datos de clientes?'))return;
-  var cs=rdb('clientes',[]);
-  var nc={id:uid(),nombre:p.cliente,rut:'',telefono:'',email:'',direccion:'',rolCliente:'cliente',observaciones:'',extraCampos:[]};
-  cs.push(nc);wdb('clientes',cs);
-  p.clienteId=nc.id;p.esProspecto=false;
-  wdb('presupuestos',ps);vPres();
-  alert('✓ Cliente agregado a tu base de datos. Puedes completar sus demás datos en la sección Clientes.');
+function confirmarProspecto(id){
+  var ps=rdb('presupuestos',[]);var p=ps.find(function(x){return x.id===id});if(!p||!p.clienteId)return;
+  var cs=rdb('clientes',[]);var c=cs.find(function(x){return x.id===p.clienteId});if(!c)return;
+  c.esProspecto=false;wdb('clientes',cs);
+  p.esProspecto=false;wdb('presupuestos',ps);
+  vPres();
+  alert('✓ Cliente confirmado en tu base de datos.');
 }
 
 // ── Condiciones de pago estructuradas (anticipo + resto, o anticipo + cuotas + saldo final) ──
@@ -1889,14 +1902,59 @@ function pagoFromLegacy(condPagoText){
   if(m)d.anticipoPct=parseFloat(m[1]);
   return d;
 }
-function pagoLabelFinal(v){return v==='aprobacion'?'a la aprobación del expediente en la Dirección de Obras Municipales':'al ingreso del expediente a la Dirección de Obras Municipales'}
+function pagoLabelFinal(v){
+  if(v==='aprobacion')return 'a la aprobación del expediente en la Dirección de Obras Municipales';
+  if(v==='ninguna')return 'al finalizar los trabajos';
+  return 'al ingreso del expediente a la Dirección de Obras Municipales';
+}
+// ── Conversión de fechas para el selector nativo (input type=date usa yyyy-mm-dd) ──
+function toISODate(s){
+  if(!s)return '';
+  s=s.trim();
+  var m=/^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s);
+  if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  return '';
+}
+function fromISODate(iso){
+  if(!iso)return '';
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if(!m)return iso;
+  return m[3]+'-'+m[2]+'-'+m[1];
+}
+// ── Notas reutilizables para condiciones de pago (anticipo, cuotas, saldo final) ──
+function pagoNotaWidget(prefix){
+  var notas=getNotasPred('pago');
+  if(!notas.length)return '';
+  var opts=notas.map(function(n,i){var label=n.length>40?n.substring(0,40)+'…':n;return '<option value="'+i+'">'+label+'</option>'}).join('');
+  return '<select class="inp" style="margin-top:3px;font-size:11px" onchange="pagoInsertNota(\''+prefix+'\',this.value);this.value=\'\'">'+
+    '<option value="">— Insertar nota guardada —</option>'+opts+'</select>';
+}
+function pagoInsertNota(prefix,idx){
+  if(idx==='')return;
+  var notas=getNotasPred('pago');var n=notas[idx];if(n==null)return;
+  var el=document.getElementById(prefix+'_NOTA');if(el)el.value=n;
+}
+function pagoGuardarNota(prefix){
+  var el=document.getElementById(prefix+'_NOTA');if(!el)return;
+  var txt=(el.value||'').trim();if(!txt){alert('Escribe una nota primero');return}
+  var notas=getNotasPred('pago');
+  if(notas.indexOf(txt)>=0){alert('Esta nota ya está guardada');return}
+  notas.push(txt);saveNotasPred(notas,'pago');
+  var w=document.getElementById('PGNOTAW_'+prefix);
+  if(w)w.innerHTML=pagoNotaWidget(prefix);
+  alert('✓ Nota guardada');
+}
 function pagoItemExtras(prefix,nota,fecha,label){
   var hasFecha=!!fecha;
-  return '<div class="fld"><input class="inp" id="'+prefix+'_NOTA" placeholder="'+label+'" value="'+(nota||'')+'"></div>'+
+  return '<div class="fld"><div style="display:flex;gap:6px;align-items:center">'+
+    '<input class="inp f1" id="'+prefix+'_NOTA" placeholder="'+label+'" value="'+(nota||'')+'">'+
+    '<button type="button" class="btn btn-sm" style="flex-shrink:0" onclick="pagoGuardarNota(\''+prefix+'\')" title="Guardar como nota reutilizable">💾</button>'+
+    '</div><div id="PGNOTAW_'+prefix+'">'+pagoNotaWidget(prefix)+'</div></div>'+
     '<div class="fld" style="display:flex;align-items:center;gap:8px">'+
     '<input type="checkbox" id="'+prefix+'_FCHK" onchange="pagoToggleFecha(\''+prefix+'\')" style="width:16px;height:16px;accent-color:var(--txi)"'+(hasFecha?' checked':'')+'>'+
     '<label for="'+prefix+'_FCHK" style="font-size:12px;cursor:pointer">Establecer fecha</label>'+
-    '<input id="'+prefix+'_FECHA" class="inp" style="width:140px;'+(hasFecha?'':'display:none')+'" value="'+(fecha||'')+'" placeholder="dd-mm-aaaa">'+
+    '<input type="date" id="'+prefix+'_FECHA" class="inp" style="width:160px;'+(hasFecha?'':'display:none')+'" value="'+toISODate(fecha)+'">'+
     '</div>';
 }
 function pagoToggleFecha(prefix){
@@ -1907,43 +1965,41 @@ function pagoCuotaRow(i,c){
   c=c||{};var prefix='PGC'+i;
   return '<div class="pg-cuota-row" data-idx="'+i+'" style="background:var(--bg2);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;border:.5px solid var(--bd)">'+
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'+
-    '<span class="tsm tx2" style="min-width:56px">Cuota '+(i+1)+'</span>'+
+    '<span class="tsm tx2" style="min-width:110px">Pago '+(i+2)+' · Cuota '+(i+1)+'</span>'+
     '<input type="number" min="0" max="100" class="inp" style="width:70px" id="'+prefix+'_PCT" value="'+(c.pct!=null?c.pct:'')+'" oninput="pagoRecalc()" placeholder="%">'+
     '<span class="tsm tx2">%</span>'+
-    '<button type="button" class="btn btn-sm btn-d" style="margin-left:auto" onclick="this.closest(\'.pg-cuota-row\').remove();pagoRecalc()">×</button>'+
+    '<button type="button" class="btn btn-sm btn-d" style="margin-left:auto" onclick="pagoRemoveCuota('+i+')">×</button>'+
     '</div>'+
-    pagoItemExtras(prefix,c.nota,c.fecha,'Nota de la cuota (opcional)')+
+    pagoItemExtras(prefix,c.nota,c.fecha,'Nota de esta cuota (opcional)')+
     '</div>';
-}
-function pagoAddCuota(){
-  var c=document.getElementById('PGCUOTAS');if(!c)return;
-  var i=c.querySelectorAll('.pg-cuota-row').length;
-  c.insertAdjacentHTML('beforeend',pagoCuotaRow(i,{}));
-  pagoRecalc();
 }
 function pagoSectionHTML(pago){
   pago=pago||pagoDefault();
-  var h='<div class="fld"><label>Modalidad</label><select id="PGMODO" class="inp" onchange="pagoSetModo()">'+
-    '<option value="simple"'+(pago.modo!=='cuotas'?' selected':'')+'>Anticipo + saldo al ingreso/aprobación del expediente</option>'+
-    '<option value="cuotas"'+(pago.modo==='cuotas'?' selected':'')+'>Anticipo + cuotas + saldo final</option>'+
-    '</select></div>';
-  h+='<div class="fld"><label>Anticipo</label><div style="display:flex;gap:8px;align-items:center">'+
+  var cuotas=pago.cuotas||[];
+  var totalPagos=2+cuotas.length;
+  var h='<div class="tsm" style="margin-bottom:10px;padding:6px 10px;background:var(--bgi);border-radius:var(--r);color:var(--txi)">Este presupuesto tendrá <strong id="PG_NPAGOS">'+totalPagos+'</strong> pago(s) en total: anticipo + '+cuotas.length+' cuota(s) + saldo final.</div>';
+  h+='<div class="fld"><label>N° de cuotas intermedias <span class="tsm tx2" style="font-weight:400">(sin contar el anticipo ni el saldo final)</span></label>'+
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+    '<input type="number" min="0" max="20" id="PGN_CUOTAS" class="inp" style="width:80px" value="'+cuotas.length+'">'+
+    '<button type="button" class="btn btn-sm" onclick="pagoSetCount()">Aplicar</button>'+
+    '<button type="button" class="btn btn-sm" onclick="pagoDistribuir()">⚖ Repartir % en partes iguales</button>'+
+    '</div></div>';
+  h+='<div class="hr"></div>';
+  h+='<div class="fld"><label>Pago 1 · Anticipo</label><div style="display:flex;gap:8px;align-items:center">'+
     '<input id="PGANT_PCT" type="number" min="0" max="100" class="inp" style="width:80px" value="'+(pago.anticipoPct!=null?pago.anticipoPct:50)+'" oninput="pagoRecalc()">'+
     '<span class="tsm tx2">% al inicio de los trabajos</span></div></div>';
   h+=pagoItemExtras('PGANT',pago.anticipoNota,pago.anticipoFecha,'Nota del anticipo (opcional)');
-  if(pago.modo==='cuotas'){
-    var cuotasHTML=(pago.cuotas||[]).map(function(c,i){return pagoCuotaRow(i,c)}).join('');
-    h+='<div id="PGCUOTAS">'+cuotasHTML+'</div>';
-    h+='<button type="button" class="btn btn-sm" onclick="pagoAddCuota()">+ Agregar cuota</button>';
-    h+='<div class="hr"></div>';
-  } else {
-    h+='<div class="fld"><label>Momento del saldo final</label><select id="PGFINAL_LBL" class="inp">'+
-      '<option value="ingreso"'+(pago.finalLabel!=='aprobacion'?' selected':'')+'>Ingreso del expediente a la DOM</option>'+
-      '<option value="aprobacion"'+(pago.finalLabel==='aprobacion'?' selected':'')+'>Aprobación del expediente en la DOM</option>'+
-      '</select></div>';
-  }
-  h+='<div class="tsm" id="PGFINAL_PCT_DISP" style="margin-bottom:6px;font-weight:600"></div>';
-  h+=pagoItemExtras('PGFIN',pago.finalNota,pago.finalFecha,'Nota del saldo final (opcional)');
+  var cuotasHTML=cuotas.map(function(c,i){return pagoCuotaRow(i,c)}).join('');
+  h+='<div id="PGCUOTAS">'+cuotasHTML+'</div>';
+  h+='<div class="hr"></div>';
+  h+='<div class="fld"><label>Pago '+totalPagos+' · Saldo final</label>'+
+    '<div class="tsm" id="PGFINAL_PCT_DISP" style="margin-bottom:6px;font-weight:600"></div>'+
+    '<select id="PGFINAL_LBL" class="inp">'+
+    '<option value="ingreso"'+(pago.finalLabel!=='aprobacion'&&pago.finalLabel!=='ninguna'?' selected':'')+'>Al ingreso del expediente a la DOM</option>'+
+    '<option value="aprobacion"'+(pago.finalLabel==='aprobacion'?' selected':'')+'>A la aprobación del expediente en la DOM</option>'+
+    '<option value="ninguna"'+(pago.finalLabel==='ninguna'?' selected':'')+'>Sin condición especial (solo saldo final)</option>'+
+    '</select></div>'+
+    pagoItemExtras('PGFIN',pago.finalNota,pago.finalFecha,'Nota del saldo final (opcional)');
   h+='<div id="PG_TOTAL" style="font-size:12px;margin-top:6px"></div>';
   h+='<div class="fld" style="display:flex;align-items:center;gap:8px;margin-top:8px">'+
     '<input type="checkbox" id="PGIMPRIMIR" style="width:16px;height:16px;accent-color:var(--txi)"'+(pago.imprimir!==false?' checked':'')+'>'+
@@ -1952,13 +2008,12 @@ function pagoSectionHTML(pago){
 }
 function pagoReadState(){
   var g=function(id){return (document.getElementById(id)||{}).value||''};
-  var modo=(document.getElementById('PGMODO')||{}).value||'simple';
   var cuotas=Array.from(document.querySelectorAll('#PGCUOTAS .pg-cuota-row')).map(function(row){
     var i=row.dataset.idx;
     return {pct:parseFloat(g('PGC'+i+'_PCT'))||0,nota:g('PGC'+i+'_NOTA'),fecha:((document.getElementById('PGC'+i+'_FCHK')||{}).checked)?g('PGC'+i+'_FECHA'):''};
   });
   return {
-    modo:modo,
+    modo:cuotas.length>0?'cuotas':'simple',
     anticipoPct:parseFloat(g('PGANT_PCT'))||0,
     anticipoNota:g('PGANT_NOTA'),
     anticipoFecha:((document.getElementById('PGANT_FCHK')||{}).checked)?g('PGANT_FECHA'):'',
@@ -1969,22 +2024,49 @@ function pagoReadState(){
     imprimir:(document.getElementById('PGIMPRIMIR')||{}).checked!==false
   };
 }
-function pagoSetModo(){
+function pagoSetCount(){
   var st=pagoReadState();
+  var n=parseInt((document.getElementById('PGN_CUOTAS')||{}).value)||0;
+  n=Math.max(0,Math.min(20,n));
+  var restante=100-(st.anticipoPct||0);
+  var share=Math.max(0,Math.floor(restante/(n+1))); // n cuotas + saldo final se reparten el resto
+  var prevCuotas=st.cuotas;
+  var cur=[];
+  for(var k=0;k<n;k++){
+    cur.push(prevCuotas[k]?{pct:share,nota:prevCuotas[k].nota||'',fecha:prevCuotas[k].fecha||''}:{pct:share,nota:'',fecha:''});
+  }
+  st.cuotas=cur;
   document.getElementById('PAGO_BODY').innerHTML=pagoSectionHTML(st);
   setTimeout(pagoRecalc,10);
 }
+function pagoRemoveCuota(i){
+  var st=pagoReadState();
+  st.cuotas=st.cuotas.filter(function(c,idx){return idx!==i});
+  document.getElementById('PAGO_BODY').innerHTML=pagoSectionHTML(st);
+  setTimeout(pagoRecalc,10);
+}
+function pagoDistribuir(){
+  var st=pagoReadState();
+  var total=2+st.cuotas.length;
+  var base=Math.floor(100/total);
+  var antEl=document.getElementById('PGANT_PCT');if(antEl)antEl.value=base;
+  document.querySelectorAll('#PGCUOTAS .pg-cuota-row').forEach(function(row){
+    var i=row.dataset.idx;
+    var inp=document.getElementById('PGC'+i+'_PCT');
+    if(inp)inp.value=base;
+  });
+  pagoRecalc();
+}
 function pagoRecalc(){
   var g=function(id){return (document.getElementById(id)||{}).value||''};
-  var modo=(document.getElementById('PGMODO')||{}).value||'simple';
   var ant=parseFloat(g('PGANT_PCT'))||0;
-  var sumCuotas=0;
-  if(modo==='cuotas'){
-    document.querySelectorAll('#PGCUOTAS .pg-cuota-row').forEach(function(row){
-      var i=row.dataset.idx;sumCuotas+=parseFloat(g('PGC'+i+'_PCT'))||0;
-    });
-  }
+  var sumCuotas=0,count=0;
+  document.querySelectorAll('#PGCUOTAS .pg-cuota-row').forEach(function(row){
+    var i=row.dataset.idx;sumCuotas+=parseFloat(g('PGC'+i+'_PCT'))||0;count++;
+  });
   var finalPct=100-ant-sumCuotas;
+  var totalPagos=2+count;
+  var npagosEl=document.getElementById('PG_NPAGOS');if(npagosEl)npagosEl.textContent=totalPagos;
   var disp=document.getElementById('PGFINAL_PCT_DISP');
   if(disp){
     disp.textContent='Saldo final (automático): '+finalPct+'%';
@@ -1993,21 +2075,81 @@ function pagoRecalc(){
   var totEl=document.getElementById('PG_TOTAL');
   if(totEl){
     var ok=finalPct>=0;
-    totEl.innerHTML=ok?('<span style="color:var(--txs)">✓ Suma 100% del total</span>'):('<span style="color:var(--txd)">⚠ El anticipo + cuotas superan el 100% — ajusta los porcentajes</span>');
+    totEl.innerHTML=ok?('<span style="color:var(--txs)">✓ Suma 100% del total ('+totalPagos+' pagos)</span>'):('<span style="color:var(--txd)">⚠ El anticipo + cuotas superan el 100% — ajusta los porcentajes</span>');
   }
 }
 function pagoBuildItems(pago,tot){
   var items=[];
-  items.push({label:'Anticipo',fraseLabel:'al inicio de los trabajos',pct:pago.anticipoPct||0,nota:pago.anticipoNota,fecha:pago.anticipoFecha});
-  if(pago.modo==='cuotas'){
-    (pago.cuotas||[]).forEach(function(c,i){items.push({label:'Cuota '+(i+1),fraseLabel:'en la cuota '+(i+1),pct:c.pct||0,nota:c.nota,fecha:c.fecha})});
-    var sum=items.reduce(function(a,it){return a+it.pct},0);
-    items.push({label:'Saldo final',fraseLabel:pagoLabelFinal('ingreso'),pct:100-sum,nota:pago.finalNota,fecha:pago.finalFecha});
-  } else {
-    items.push({label:'Saldo final',fraseLabel:pagoLabelFinal(pago.finalLabel),pct:100-(pago.anticipoPct||0),nota:pago.finalNota,fecha:pago.finalFecha});
-  }
+  items.push({label:'Anticipo',fraseLabel:'al inicio de los trabajos',pct:pago.anticipoPct||0,nota:pago.anticipoNota,fecha:fromISODate(pago.anticipoFecha)});
+  (pago.cuotas||[]).forEach(function(c,i){items.push({label:'Cuota '+(i+1),fraseLabel:'en la cuota '+(i+1),pct:c.pct||0,nota:c.nota,fecha:fromISODate(c.fecha)})});
+  var sum=items.reduce(function(a,it){return a+it.pct},0);
+  items.push({label:'Saldo final',fraseLabel:pagoLabelFinal(pago.finalLabel),pct:100-sum,nota:pago.finalNota,fecha:fromISODate(pago.finalFecha)});
   items.forEach(function(it){it.monto=Math.round(tot*(it.pct/100))});
   return items;
+}
+
+// ── Ítems y costos reutilizables (menú desplegable para reciclar descripción + unidad + valor) ──
+function getItemsPred(){try{return JSON.parse(localStorage.getItem('arq_items_pred')||'[]')}catch(e){return[]}}
+function saveItemsPred(arr){localStorage.setItem('arq_items_pred',JSON.stringify(arr));clearTimeout(window._arqSaveTimer);window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase()},800)}
+function itemsPredWidget(){
+  var items=getItemsPred();
+  if(!items.length)return '<span class="tsm tx2">Aún no tienes ítems guardados — usa el botón 💾 en un ítem para guardarlo.</span>';
+  var opts=items.map(function(it,i){
+    var det=it.tipo==='unitario'?(it.unidad?' ('+it.unidad+(it.uv?' · $'+Number(it.uv).toLocaleString('es-CL'):'')+')':''):(it.valor?' ($'+Number(it.valor).toLocaleString('es-CL')+')':'');
+    return '<option value="'+i+'">'+it.desc+det+'</option>';
+  }).join('');
+  return '<select class="inp" style="max-width:300px" onchange="insertItemPred(this.value);this.value=\'\'">'+
+    '<option value="">— Insertar ítem guardado —</option>'+opts+'</select>';
+}
+function insertItemPred(idx){
+  if(idx==='')return;
+  var items=getItemsPred();var it=items[idx];if(!it)return;
+  var c=document.getElementById('PRIT');if(!c)return;
+  var i=c.querySelectorAll('.pres-row').length;
+  c.insertAdjacentHTML('beforeend',buildItemRow(i,{desc:it.desc,tipo:it.tipo,unidad:it.unidad,uv:it.uv,qty:'',valor:it.valor}));
+  presRecalcTotal();
+}
+function presGuardarItem(i){
+  var desc=(document.getElementById('PID'+i)||{}).value||'';
+  if(!desc.trim()){alert('Escribe una descripción primero');return}
+  var tipo=(document.getElementById('PITP'+i)||{}).value||'simple';
+  var nuevo;
+  if(tipo==='unitario'){
+    var unidad=(document.getElementById('PIUN'+i)||{}).value||'';
+    var uv=parseCLP((document.getElementById('PIUV'+i)||{}).value||'');
+    nuevo={desc:desc,tipo:'unitario',unidad:unidad,uv:uv};
+  } else {
+    var val=parseCLP((document.getElementById('PIV'+i)||{}).value||'');
+    nuevo={desc:desc,tipo:'simple',valor:val};
+  }
+  var items=getItemsPred();
+  var dup=items.findIndex(function(x){return (x.desc||'').trim().toLowerCase()===desc.trim().toLowerCase()});
+  if(dup>=0){
+    if(!confirm('Ya existe un ítem guardado con esta descripción. ¿Actualizar su unidad/valor guardado?'))return;
+    items[dup]=nuevo;
+  } else {
+    items.push(nuevo);
+  }
+  saveItemsPred(items);
+  var wrap=document.getElementById('PRITEMS_PRED_WRAP');
+  if(wrap)wrap.innerHTML=itemsPredWidget();
+  alert('✓ Ítem guardado');
+}
+function renderItemsPred(){
+  var c=document.getElementById('ITEMS_LIST');if(!c)return;
+  var items=getItemsPred();
+  if(!items.length){c.innerHTML='<div class="tsm tx2">Sin ítems guardados aún. Guarda uno desde una cotización usando el botón 💾 junto a cada ítem.</div>';return}
+  c.innerHTML=items.map(function(it,i){
+    var det=it.tipo==='unitario'?(it.unidad?it.unidad+(it.uv?' · $'+Number(it.uv).toLocaleString('es-CL'):''):'Por unidad'):('$'+Number(it.valor||0).toLocaleString('es-CL'));
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border:.5px solid var(--bd);border-radius:var(--r);margin-bottom:6px">'+
+      '<div style="flex:1;font-size:12px;color:var(--tx2)"><strong style="color:var(--tx)">'+it.desc+'</strong> — '+det+'</div>'+
+      '<button class="btn btn-sm btn-d" onclick="delItemPred('+i+')">×</button>'+
+      '</div>';
+  }).join('');
+}
+function delItemPred(idx){
+  if(!confirm('¿Eliminar este ítem guardado?'))return;
+  var items=getItemsPred();items.splice(idx,1);saveItemsPred(items);renderItemsPred();
 }
 
 function editPres(id){
@@ -2047,9 +2189,10 @@ function editPres(id){
     '<div style="font-size:13px;font-weight:600;color:var(--txi)" id="PRTOTAL">Total neto: $0</div>'+
     '</div>'+
     '<div id="PRIT">'+itemsH+'</div>'+
-    '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
+    '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">'+
     '<button class="btn btn-sm" onclick="addItemPres(\'simple\')">+ Ítem valor fijo</button>'+
     '<button class="btn btn-sm" onclick="addItemPres(\'unitario\')">+ Ítem por unidad (m², gl...)</button>'+
+    '<div id="PRITEMS_PRED_WRAP" style="margin-left:auto">'+itemsPredWidget()+'</div>'+
     '</div>'+
     '<div class="hr"></div>'+
     // Nota al pie con editor
@@ -2090,6 +2233,15 @@ function savePres(id,isNew){
   var g=function(i){return(document.getElementById(i)||{}).value||''};
   var cid=g('PRCL');var cl=cid?clis.find(function(c){return c.id===cid}):null;
   var clienteNom=g('PRCLNOM').trim();
+  var esProspecto=false;
+  if(!cid&&clienteNom){
+    // Se guarda automáticamente como posible cliente para no reescribir el nombre en el futuro
+    var nc={id:uid(),nombre:clienteNom,rut:'',telefono:'',email:'',direccion:'',rolCliente:'cliente',observaciones:'',extraCampos:[],esProspecto:true};
+    clis.push(nc);wdb('clientes',clis);
+    cid=nc.id;cl=nc;esProspecto=true;
+  } else if(cl&&cl.esProspecto){
+    esProspecto=true;
+  }
   var firmaCliente=(document.getElementById('PRFIRMA')||{}).checked!==false;
   var rows=document.querySelectorAll('#PRIT .pres-row');
   var items=Array.from(rows).map(function(row){
@@ -2108,7 +2260,7 @@ function savePres(id,isNew){
       return{desc:desc,tipo:'simple',valor:val};
     }
   }).filter(Boolean);
-  var upd={id:id,clienteId:cid,cliente:cl?cl.nombre:clienteNom,esProspecto:(!cid&&!!clienteNom),
+  var upd={id:id,clienteId:cid,cliente:cl?cl.nombre:clienteNom,esProspecto:esProspecto,
     desc:presGetEditor('PRDE'),items:items,
     nota:presGetEditor('PRNO'),
     firmaCliente:firmaCliente,fecha:g('PRFE'),
@@ -2292,18 +2444,29 @@ function doPrintPres(id,profIdx,bancoIdx,mostrarMonto){
     if(banco.email)body+='<div><strong>Email:</strong> '+banco.email+'</div>';
     body+='</div>';
 
-    // Monto a transferir — efecto destacador azul/amarillo
+    // Monto a transferir — primer pago destacado grande; el resto como desglose más discreto
     if(montosTransf.length&&mostrarMonto){
+      var primero=montosTransf[0];var resto=montosTransf.slice(1);
       body+='<div style="flex:1;min-width:190px;padding:12px 16px;background:#fffbe6;border:2px solid #f0c040;border-radius:6px;font-size:12px">';
       body+='<div style="font-weight:700;margin-bottom:8px;font-size:13px;color:#1a3a6b">💳 Monto a transferir</div>';
-      montosTransf.forEach(function(mt){
-        body+='<div style="margin-bottom:8px;padding:6px 10px;border-radius:5px;border-left:4px solid #1a6bbf;background:#fff9db">'
-          +'<div style="font-size:10px;color:#666;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">'+mt.label+'</div>'
-          +'<div style="font-size:19px;font-weight:900;color:#1a3a6b;letter-spacing:-.5px;background:linear-gradient(90deg,#ffe066,#fff176);padding:3px 10px;border-radius:4px;display:inline-block;border:1.5px solid #f0c040">$'+Number(mt.monto).toLocaleString('es-CL')+'</div>'
-          +(mt.nota?'<div style="font-size:10px;color:#555;margin-top:3px">'+mt.nota+'</div>':'')
-          +'</div>';
-      });
-      body+='<div style="font-size:10px;color:#888;margin-top:4px;border-top:1px dashed #e0c040;padding-top:5px">Total cotización: <strong style="color:#333">$'+Number(tot).toLocaleString('es-CL')+'</strong></div>';
+      body+='<div style="margin-bottom:8px;padding:6px 10px;border-radius:5px;border-left:4px solid #1a6bbf;background:#fff9db">'
+        +'<div style="font-size:10px;color:#666;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">'+primero.label+'</div>'
+        +'<div style="font-size:19px;font-weight:900;color:#1a3a6b;letter-spacing:-.5px;background:linear-gradient(90deg,#ffe066,#fff176);padding:3px 10px;border-radius:4px;display:inline-block;border:1.5px solid #f0c040">$'+Number(primero.monto).toLocaleString('es-CL')+'</div>'
+        +(primero.nota?'<div style="font-size:10px;color:#555;margin-top:3px">'+primero.nota+'</div>':'')
+        +'</div>';
+      if(resto.length){
+        body+='<div style="margin-top:10px;padding-top:8px;border-top:1px dashed #e0c040">';
+        body+='<div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Desglose de próximos pagos</div>';
+        resto.forEach(function(mt){
+          body+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 8px;background:#fdf7e3;border-radius:4px;margin-bottom:3px">'
+            +'<span style="font-size:10px;color:#666">'+mt.label+'</span>'
+            +'<span style="font-size:13px;font-weight:700;color:#5a4a1a;white-space:nowrap">$'+Number(mt.monto).toLocaleString('es-CL')+'</span>'
+            +'</div>';
+          if(mt.nota)body+='<div style="font-size:9px;color:#888;margin:-2px 0 4px 8px">'+mt.nota+'</div>';
+        });
+        body+='</div>';
+      }
+      body+='<div style="font-size:10px;color:#888;margin-top:6px;border-top:1px dashed #e0c040;padding-top:5px">Total cotización: <strong style="color:#333">$'+Number(tot).toLocaleString('es-CL')+'</strong></div>';
       body+='</div>';
     }
 
@@ -2515,6 +2678,12 @@ function vConf(){
     '<div class="tsm tx2 mb2">Notas que puedes insertar rápidamente al redactar cotizaciones.</div>'+
     '<div id="NOTAS_LIST"></div>'+
     '</div>'+
+    // ── Ítems guardados ──
+    '<div class="card mt3">'+
+    '<div class="sec-ttl">🧱 Ítems guardados (cotizaciones)</div>'+
+    '<div class="tsm tx2 mb2">Ítems reutilizables con su unidad y valor de referencia. Se pueden editar libremente al insertarlos en una cotización.</div>'+
+    '<div id="ITEMS_LIST"></div>'+
+    '</div>'+
     // ── Profesionales ──
     '<div class="card mt3">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
@@ -2575,7 +2744,7 @@ function vConf(){
       var lb=localStorage.getItem('arq_lastbackup_at');
       bkInfo.textContent=lb?'Último respaldo local: '+new Date(parseInt(lb)).toLocaleString('es-CL'):'Aún no hay respaldo local registrado.';
     }
-    renderBancos();renderNotasPred();renderProfesionales();
+    renderBancos();renderNotasPred();renderProfesionales();renderItemsPred();
     var profs2=getProfesionales();
     // Membrete preview — solo el primero como ejemplo
     var membPEl=document.getElementById('PREV_MEMB_PROFS');
@@ -2649,13 +2818,15 @@ function exportData(){
   data.bancos=localStorage.getItem('arq_bancos');
   data.notas_pred=localStorage.getItem('arq_notas_pred');
   data.notas_pie=localStorage.getItem('arq_notas_pie');
+  data.notas_pago=localStorage.getItem('arq_notas_pago');
   data.profesionales=localStorage.getItem('arq_profesionales');
+  data.items_pred=localStorage.getItem('arq_items_pred');
   data.plan_st=localStorage.getItem('arq_plan_st');
   data.plan_own=localStorage.getItem('arq_plan_own');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download='arqgestion_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();
 }
-function importData(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){try{var d=JSON.parse(e.target.result);['proyectos','clientes','tramites','presupuestos','config'].forEach(function(k){if(d['u1_'+k])localStorage.setItem('arq_u1_'+k,JSON.stringify(d['u1_'+k]));if(d['u2_'+k])localStorage.setItem('arq_u2_'+k,JSON.stringify(d['u2_'+k]))});if(d.logo)localStorage.setItem('arq_logo',d.logo);if(d.u1_UN)localStorage.setItem('arq_u1_UN',d.u1_UN);if(d.u2_UN)localStorage.setItem('arq_u2_UN',d.u2_UN);if(d.bancos)localStorage.setItem('arq_bancos',d.bancos);if(d.notas_pred)localStorage.setItem('arq_notas_pred',d.notas_pred);if(d.notas_pie)localStorage.setItem('arq_notas_pie',d.notas_pie);if(d.profesionales)localStorage.setItem('arq_profesionales',d.profesionales);if(d.plan_st)localStorage.setItem('arq_plan_st',d.plan_st);if(d.plan_own)localStorage.setItem('arq_plan_own',d.plan_own);alert('✓ Datos importados correctamente');_arqPushToFirebase();go(CV)}catch(err){alert('Error al importar. Verifica el archivo.')}};r.readAsText(f)}
+function importData(inp){var f=inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){try{var d=JSON.parse(e.target.result);['proyectos','clientes','tramites','presupuestos','config'].forEach(function(k){if(d['u1_'+k])localStorage.setItem('arq_u1_'+k,JSON.stringify(d['u1_'+k]));if(d['u2_'+k])localStorage.setItem('arq_u2_'+k,JSON.stringify(d['u2_'+k]))});if(d.logo)localStorage.setItem('arq_logo',d.logo);if(d.u1_UN)localStorage.setItem('arq_u1_UN',d.u1_UN);if(d.u2_UN)localStorage.setItem('arq_u2_UN',d.u2_UN);if(d.bancos)localStorage.setItem('arq_bancos',d.bancos);if(d.notas_pred)localStorage.setItem('arq_notas_pred',d.notas_pred);if(d.notas_pie)localStorage.setItem('arq_notas_pie',d.notas_pie);if(d.notas_pago)localStorage.setItem('arq_notas_pago',d.notas_pago);if(d.profesionales)localStorage.setItem('arq_profesionales',d.profesionales);if(d.items_pred)localStorage.setItem('arq_items_pred',d.items_pred);if(d.plan_st)localStorage.setItem('arq_plan_st',d.plan_st);if(d.plan_own)localStorage.setItem('arq_plan_own',d.plan_own);alert('✓ Datos importados correctamente');_arqPushToFirebase();go(CV)}catch(err){alert('Error al importar. Verifica el archivo.')}};r.readAsText(f)}
 
 
 // ── Client inline create/edit ──
