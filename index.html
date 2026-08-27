@@ -140,6 +140,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const _db = firebase.firestore();
 const _ARQ_DOC = _db.collection("arqgestion").doc("estudio_modulo_sur");
+const _ARQ_BACKUPS = _db.collection("arqgestion_backups");
 
 window._arqSave = function(data) {
   return _ARQ_DOC.set({ payload: JSON.stringify(data) }).catch(function(e){
@@ -158,6 +159,24 @@ window._arqListen = function(callback) {
       try { callback(JSON.parse(snap.data().payload)); } catch(e) {}
     }
   });
+};
+// ── Respaldo diario independiente: un documento por día (id = YYYY-MM-DD), nunca se sobrescriben días anteriores ──
+window._arqSaveBackup = function(dateKey, data) {
+  return _ARQ_BACKUPS.doc(dateKey).set({
+    payload: JSON.stringify(data),
+    savedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function(e){ console.error("Error guardando respaldo diario ARQ:", e); });
+};
+window._arqListBackups = function() {
+  return _ARQ_BACKUPS.orderBy(firebase.firestore.FieldPath.documentId(), "desc").limit(31).get()
+    .then(function(snap){ return snap.docs.map(function(d){ return { id: d.id }; }); })
+    .catch(function(e){ return []; });
+};
+window._arqLoadBackup = function(dateKey) {
+  return _ARQ_BACKUPS.doc(dateKey).get().then(function(snap){
+    if (snap.exists) return JSON.parse(snap.data().payload);
+    return null;
+  }).catch(function(e){ return null; });
 };
 window._arqFirebaseReady = true;
 window.dispatchEvent(new Event("arq-firebase-ready"));
@@ -222,6 +241,9 @@ var CU='u1';
 function rdb(k,d){try{var v=localStorage.getItem('arq_'+CU+'_'+k);return v?JSON.parse(v):d}catch(e){return d}}
 function wdb(k,v){
   localStorage.setItem('arq_'+CU+'_'+k,JSON.stringify(v));
+  // Si Firebase está activo pero aún no terminó de cargar los datos reales de la nube,
+  // no empujar todavía (evita sobrescribir la nube con un estado local incompleto).
+  if(window._arqSave&&!_arqReady){_arqPendingPush=true;return;}
   // Sync a Firebase con debounce
   clearTimeout(window._arqSaveTimer);
   window._arqSaveTimer=setTimeout(function(){_arqPushToFirebase();},800);
@@ -270,6 +292,8 @@ function _arqApplyData(data){
   if(data.logo){localStorage.setItem('arq_logo',data.logo);loadLogo();}
 }
 var _arqSkipNext=false;
+var _arqReady=false;
+var _arqPendingPush=false;
 var _arqPushRetries=0;
 function _arqLocalBackup(payload){
   // Respaldo local adicional (independiente de Firestore) por seguridad de datos
@@ -296,6 +320,10 @@ function _arqPushToFirebase(){
     _arqPushRetries=0;
     showSyncARQ('saved');
     _arqLocalBackup(payload);
+    if(window._arqSaveBackup){
+      var todayKey=new Date().toISOString().slice(0,10);
+      window._arqSaveBackup(todayKey,payload);
+    }
     setTimeout(function(){_arqSkipNext=false;},8000);
   }).catch(function(e){
     console.error('Error guardando ARQ:',e);
@@ -317,8 +345,12 @@ function _arqInitFirebase(){
   if(!window._arqLoad)return;
   showSyncARQ('saving');
   window._arqLoad().then(function(data){
-    if(data){_arqApplyData(data);_arqLocalBackup(data);}
+    // Si el usuario ya guardó algo mientras esperábamos la nube, no lo pisamos con lo que venga de ahí:
+    // confiamos en su edición local (más reciente) y la empujamos nosotros mismos.
+    if(data&&!_arqPendingPush){_arqApplyData(data);_arqLocalBackup(data);go(CV);}
+    _arqReady=true;
     showSyncARQ('saved');
+    if(_arqPendingPush){_arqPendingPush=false;_arqPushToFirebase();}
     // Escuchar cambios en tiempo real
     window._arqListen(function(data){
       if(_arqSkipNext){return;}
@@ -330,9 +362,40 @@ function _arqInitFirebase(){
       go(CV);
       showSyncARQ('saved');
     });
-  }).catch(function(){showSyncARQ('offline');_arqScheduleRetry();});
+  }).catch(function(){
+    _arqReady=true;
+    showSyncARQ('offline');_arqScheduleRetry();
+    if(_arqPendingPush){_arqPendingPush=false;_arqPushToFirebase();}
+  });
 }
 function arqForzarSync(){_arqPushToFirebase();}
+// ── Panel de respaldos diarios: listar y restaurar cualquier día de los últimos 31 ──
+function renderRespaldosARQ(){
+  var c=document.getElementById('ARQ_RESPALDOS_LIST');if(!c)return;
+  if(!window._arqListBackups){c.innerHTML='<span class="tsm tx2">Respaldo en la nube no disponible todavía (sin conexión a Firebase).</span>';return}
+  c.innerHTML='<span class="tsm tx2">Cargando…</span>';
+  window._arqListBackups().then(function(list){
+    if(!list||!list.length){c.innerHTML='<span class="tsm tx2">Aún no hay respaldos diarios guardados — se genera uno automáticamente la próxima vez que guardes algo.</span>';return}
+    c.innerHTML=list.map(function(b){
+      var hoy=new Date().toISOString().slice(0,10);
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg2);border:.5px solid var(--bd);border-radius:var(--r);margin-bottom:6px">'+
+        '<div style="flex:1;font-size:12px;color:var(--tx2)">'+fromISODate(b.id)+(b.id===hoy?' <span class="tsm" style="color:var(--txs)">(hoy)</span>':'')+'</div>'+
+        '<button class="btn btn-sm" onclick="restaurarRespaldoARQ(\''+b.id+'\')">↺ Restaurar este día</button>'+
+        '</div>';
+    }).join('');
+  }).catch(function(){c.innerHTML='<span class="tsm tx2">No se pudo cargar la lista de respaldos.</span>';});
+}
+function restaurarRespaldoARQ(dateKey){
+  if(!confirm('¿Restaurar el respaldo del '+fromISODate(dateKey)+'?\n\nEsto reemplazará TODOS los datos actuales (proyectos, clientes, trámites, presupuestos, configuración) por los que había guardados ese día. Esta acción no se puede deshacer.\n\nSi quieres estar seguro, exporta un respaldo de tus datos actuales antes de continuar.'))return;
+  if(!window._arqLoadBackup)return;
+  window._arqLoadBackup(dateKey).then(function(data){
+    if(!data){alert('No se encontró el respaldo de ese día.');return}
+    _arqApplyData(data);
+    _arqPushToFirebase();
+    go(CV);
+    alert('✓ Datos restaurados desde el '+fromISODate(dateKey)+'.');
+  }).catch(function(){alert('Error al restaurar el respaldo. Intenta de nuevo.')});
+}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function fmt(n){return Number(n||0).toLocaleString('es-CL')}
 function stEst(e){return{ejecucion:'En ejecución',terminado:'Terminado',porEjecutar:'Por ejecutar'}[e]||'Por ejecutar'}
@@ -2805,6 +2868,10 @@ function vConf(){
     '<div class="tsm tx2 mb2" id="ARQ_BACKUP_INFO">Los datos se sincronizan automáticamente a la nube y además se guarda un respaldo local en este navegador.</div>'+
     '<button class="btn btn-sm mt1" onclick="arqForzarSync()">☁ Forzar sincronización ahora</button>'+
     '</div>'+
+    '<div class="card mt2"><div class="sec-ttl">🗓️ Respaldos diarios (nube)</div>'+
+    '<div class="tsm tx2 mb2">Cada vez que se guarda algo, queda una copia completa de ese día en un lugar aparte de la nube (independiente del guardado normal). Puedes volver a cualquiera de los últimos 31 días si algo sale mal.</div>'+
+    '<div id="ARQ_RESPALDOS_LIST"><span class="tsm tx2">Cargando…</span></div>'+
+    '</div>'+
     '<div class="card mt2"><div class="sec-ttl">Exportar / Importar datos</div>'+
     '<div class="tsm tx2 mb2">Exporta periódicamente un archivo de respaldo para máxima seguridad.</div>'+
     '<button class="btn btn-sm mt1" onclick="exportData()">📤 Exportar</button> '+
@@ -2818,7 +2885,7 @@ function vConf(){
       var lb=localStorage.getItem('arq_lastbackup_at');
       bkInfo.textContent=lb?'Último respaldo local: '+new Date(parseInt(lb)).toLocaleString('es-CL'):'Aún no hay respaldo local registrado.';
     }
-    renderBancos();renderNotasPred();renderProfesionales();renderItemsPred();
+    renderBancos();renderNotasPred();renderProfesionales();renderItemsPred();renderRespaldosARQ();
     var profs2=getProfesionales();
     // Membrete preview — solo el primero como ejemplo
     var membPEl=document.getElementById('PREV_MEMB_PROFS');
