@@ -139,12 +139,25 @@ const firebaseConfig = {
   appId: "1:243910049708:web:a73b9bad428d2171e08409"
 };
 firebase.initializeApp(firebaseConfig);
-// App Check: certifica que este pedido viene realmente de una app publicada en un dominio autorizado
-const _appCheck = firebase.appCheck();
-_appCheck.activate(
-  new firebase.appCheck.ReCaptchaV3Provider("6LdLz5otAAAAAGaGDh2EPQdm-OaLah-V1_S5GLBa"),
-  true // refresco automático del token
-);
+// App Check: certifica que este pedido viene realmente de una app publicada en un dominio autorizado.
+// Se activa cuando el <body> ya existe (evita que reCAPTCHA falle intentando insertar su distintivo antes de tiempo)
+// y con try/catch para que, si algo falla, el resto de la sincronización siga funcionando igual.
+function _arqActivateAppCheck(){
+  try{
+    var _appCheck = firebase.appCheck();
+    _appCheck.activate(
+      new firebase.appCheck.ReCaptchaV3Provider("6LdLz5otAAAAAGaGDh2EPQdm-OaLah-V1_S5GLBa"),
+      true // refresco automático del token
+    );
+  }catch(e){
+    console.error('No se pudo activar App Check (la app sigue funcionando igual):', e);
+  }
+}
+if(document.body){
+  _arqActivateAppCheck();
+}else{
+  document.addEventListener('DOMContentLoaded', _arqActivateAppCheck);
+}
 const _db = firebase.firestore();
 const _ARQ_DOC = _db.collection("arqgestion").doc("estudio_modulo_sur");
 const _ARQ_BACKUPS = _db.collection("arqgestion_backups");
